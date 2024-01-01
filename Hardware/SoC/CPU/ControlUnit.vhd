@@ -20,13 +20,17 @@ architecture ControlUnit_Implementation of ControlUnit is
 		UNIT_STATE_EXECUTING_INSTRUCTION
 	);
 
-	-- Control unit sub-state during instruction execution --
-	type EXECUTING_STATE is
-	(
-		EXECUTING_NORMAL_OPERATIONS,
-		EXECUTING_READING_INTEGER,
-		EXECUTING_WRITING_INTEGER
-	);
+	type INTEGER_READ is record
+		address_in: CPU_INTEGER_TYPE;
+		integer_out: CPU_INTEGER_TYPE;
+		done_job: std_logic;
+	end record;
+
+	type INTEGER_WRITE is record
+		address_in: CPU_INTEGER_TYPE;
+		integer_in: CPU_INTEGER_TYPE;
+		done_job: std_logic;
+	end record;
 
 	component MemoryRead is
 		port
@@ -46,28 +50,39 @@ architecture ControlUnit_Implementation of ControlUnit is
 		);
 	end component;
 
-	type INTEGER_READ is record
-		address_in: CPU_INTEGER_TYPE;
-		integer_out: INTEGER;
-		done_job: std_logic;
-	end record;
+	function DecodeInstruction
+	(
+	) return INSTRUCTION is
 
-	type INTEGER_WRITE is record
-		address_in: CPU_INTEGER_TYPE;
-		integer_in: INTEGER;
-		done_job: std_logic;
-	end record;
+	variable instruction: INSTRUCTION;
+	begin
+		return instruction;
+	end DecodeInstruction; 
 
 	signal signal_integer_read: INTEGER_READ;
 	signal signal_integer_write: INTEGER_WRITE;
 	signal signal_unit_state: UNIT_STATE := UNIT_STATE_NOT_RUNNING;
 
 begin
+	MemoryReadInstance: MemoryRead port map
+	(
+		address_in => signal_integer_read.address_in,
+		integer_out => signal_integer_read.integer_out,
+		done_job => signal_integer_read.done_job
+	);
+
+	MemoryWriteInstance: MemoryWrite port map
+	(
+		address_in => signal_integer_write.address_in,
+		integer_in => signal_integer_write.integer_in,
+		done_job => signal_integer_write.done_job
+	);
+
 	-- Handle control unit and reset --
 	process (reset, signal_unit_state)
-		variable var_executing_state: EXECUTING_STATE := EXECUTING_NORMAL_OPERATIONS;
 		variable var_program_counter: CPU_INTEGER_TYPE := (others => '0');
 		variable var_instruction: INSTRUCTION;
+		variable var_overflow_flag: std_logic := '0'; 
     begin
 		-- Reset has been raised --
 		if rising_edge(reset) then
@@ -82,12 +97,11 @@ begin
 					signal_unit_state <= UNIT_STATE_FETCHING_INSTRUCTION;
 				-- Fetch the instruction first --
 				when UNIT_STATE_FETCHING_INSTRUCTION =>
-
 					var_program_counter := var_program_counter + 1;
 					signal_unit_state <= UNIT_STATE_EXECUTING_INSTRUCTION;
 				-- Then executes the instruction --
 				when UNIT_STATE_EXECUTING_INSTRUCTION =>
-					-- TODO: ... case instruction_fetched. --
+				-- TODO: ... case instruction_fetched. --
 			end case;
 		end if;
 	end process;
