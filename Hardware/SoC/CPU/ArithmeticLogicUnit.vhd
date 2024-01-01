@@ -1,9 +1,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use work.CPU_Package.all;
+use work.CentralProcessingUnit_Package.all;
 
-entity ALU is
+entity ArithmeticLogicUnit is
 	port
 	(
 		operation_type: in ALU_OPERATION_TYPE;
@@ -11,9 +11,9 @@ entity ALU is
 		integer_in_right: in ALU_INTEGER_IN_TYPE;
 		integer_out: out ALU_INTEGER_OUT_TYPE
 	);
-end ALU;
+end ArithmeticLogicUnit;
 
-architecture ALU_Implementation of ALU is
+architecture ArithmeticLogicUnit_Implementation of ArithmeticLogicUnit is
 begin
 	process (operation_type, integer_in_left, integer_in_right)
 		-- Store integer result, make it big enough for multiplication --
@@ -50,4 +50,4 @@ begin
 			integer_out.overflow <= '0';
 		end if;
 	end process;
-end ALU_Implementation;
+end ArithmeticLogicUnit_Implementation;
