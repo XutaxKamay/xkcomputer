@@ -28,7 +28,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 		EXECUTING_WRITING_INTEGER
 	);
 
-	component RandomAccessMemory_Read_Instruction is
+	component Memory_Read_Instruction is
 		port
 		(
 			address_in: in CPU_INTEGER_TYPE;
@@ -37,7 +37,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 		);
 	end component;
 
-	component RandomAccessMemory_Read is
+	component Memory_Read is
 		port
 		(
 			address_in: in CPU_INTEGER_TYPE;
@@ -46,7 +46,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 		);
 	end component;
 
-	component RandomAccessMemory_Write is
+	component Memory_Write is
 		port
 		(
 			address_in: in CPU_INTEGER_TYPE;
@@ -73,7 +73,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 
 begin
 
-	ram_read_instruction: RandomAccessMemory_Read_Instruction
+	read_instruction: Memory_Read_Instruction
 		port map 
 		(
 			address_in => instruction_fetch_signal.address_in,
