@@ -6,8 +6,8 @@ use work.CentralProcessingUnit_Package.all;
 entity MemoryWrite is
 	port
 	(
-		address_in: in CPU_INTEGER_TYPE;
-		bit_in: in std_logic;
+		address_in: in CPU_ADDRESS_TYPE;
+		value_in: in std_logic;
 		done_job: out std_logic
 	);
 end MemoryWrite;
