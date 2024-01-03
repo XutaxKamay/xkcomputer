@@ -314,9 +314,6 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_JUMP =>
                 address_in := (others => '0');
                 signal_has_error <= '0';
-            when OPCODE_TYPE_BRANCH =>
-                address_in := (others => '0');
-                signal_has_error <= '0';
             when others =>
                 signal_has_error <= '1';
         end case;

@@ -60,8 +60,8 @@ package CentralProcessingUnit_Package is
     constant OPCODE_TYPE_IS_LOWER: OPCODE_TYPE := "1011";
     constant OPCODE_TYPE_IS_EQUAL: OPCODE_TYPE := "1100";
     constant OPCODE_TYPE_HAD_INTEGER_OVERFLOW: OPCODE_TYPE := "1101";
+    -- Will be used for both jumping and branches --
     constant OPCODE_TYPE_JUMP: OPCODE_TYPE := "1110";
-    constant OPCODE_TYPE_BRANCH: OPCODE_TYPE := "1111";
     
     subtype OPERAND_TYPE is std_logic;
     constant OPERAND_TYPE_SIZE: integer := 1;
