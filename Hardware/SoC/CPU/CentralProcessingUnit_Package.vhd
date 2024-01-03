@@ -40,52 +40,53 @@ package CentralProcessingUnit_Package is
 	subtype CPU_INTEGER_TYPE is ALU_INTEGER_IN_TYPE;
 	constant CPU_INTEGER_TYPE_SIZE: integer := CPU_INTEGER_TYPE'length;
 
-	subtype MNEMONIC_TYPE is std_logic_vector(3 downto 0);
-	constant MNEMONIC_TYPE_SIZE: integer := MNEMONIC_TYPE'length;
+	subtype OPCODE_TYPE is std_logic_vector(3 downto 0);
+	constant OPCODE_TYPE_SIZE: integer := OPCODE_TYPE'length;
 
 	-- Integer operations --
-	constant MNEMONIC_TYPE_SET: MNEMONIC_TYPE := "0000";
-	constant MNEMONIC_TYPE_OR: MNEMONIC_TYPE := "0001";
-	constant MNEMONIC_TYPE_AND: MNEMONIC_TYPE := "0010";
-	constant MNEMONIC_TYPE_NOT: MNEMONIC_TYPE := "0011";
-	constant MNEMONIC_TYPE_ADD: MNEMONIC_TYPE := "0100";
-	constant MNEMONIC_TYPE_SUBSTRACT: MNEMONIC_TYPE := "0101";
-	constant MNEMONIC_TYPE_DIVISION: MNEMONIC_TYPE := "0110";
-	constant MNEMONIC_TYPE_MULTIPLY: MNEMONIC_TYPE := "0111";
+	constant OPCODE_TYPE_SET: OPCODE_TYPE := "0000";
+	constant OPCODE_TYPE_OR: OPCODE_TYPE := "0001";
+	constant OPCODE_TYPE_AND: OPCODE_TYPE := "0010";
+	constant OPCODE_TYPE_NOT: OPCODE_TYPE := "0011";
+	constant OPCODE_TYPE_ADD: OPCODE_TYPE := "0100";
+	constant OPCODE_TYPE_SUBSTRACT: OPCODE_TYPE := "0101";
+	constant OPCODE_TYPE_DIVISION: OPCODE_TYPE := "0110";
+	constant OPCODE_TYPE_MULTIPLY: OPCODE_TYPE := "0111";
 	-- Memory instructions --
-	constant MNEMONIC_TYPE_READ_INTEGER: MNEMONIC_TYPE := "1000";
-	constant MNEMONIC_TYPE_WRITE_INTEGER: MNEMONIC_TYPE := "1001";
+	constant OPCODE_TYPE_READ_INTEGER: OPCODE_TYPE := "1000";
+	constant OPCODE_TYPE_WRITE_INTEGER: OPCODE_TYPE := "1001";
 	-- Branch instructions --
-	constant MNEMONIC_TYPE_IS_BIGGER: MNEMONIC_TYPE := "1010";
-	constant MNEMONIC_TYPE_IS_LOWER: MNEMONIC_TYPE := "1011";
-	constant MNEMONIC_TYPE_IS_EQUAL: MNEMONIC_TYPE := "1100";
-	constant MNEMONIC_TYPE_HAD_INTEGER_OVERFLOW: MNEMONIC_TYPE := "1101";
-	constant MNEMONIC_TYPE_JUMP: MNEMONIC_TYPE := "1110";
+	constant OPCODE_TYPE_IS_BIGGER: OPCODE_TYPE := "1010";
+	constant OPCODE_TYPE_IS_LOWER: OPCODE_TYPE := "1011";
+	constant OPCODE_TYPE_IS_EQUAL: OPCODE_TYPE := "1100";
+	constant OPCODE_TYPE_HAD_INTEGER_OVERFLOW: OPCODE_TYPE := "1101";
+	constant OPCODE_TYPE_JUMP: OPCODE_TYPE := "1110";
 	
-	subtype OPERAND_TYPE is std_logic_vector(1 downto 0);
-	constant OPERAND_TYPE_SIZE: integer := OPERAND_TYPE'length;
+	subtype OPERAND_TYPE is std_logic;
+	constant OPERAND_TYPE_SIZE: integer := 1;
 
-	constant OPERAND_ADDRESS: OPERAND_TYPE := OPERAND_TYPE(to_unsigned(0, OPERAND_TYPE_SIZE));
-	constant OPERAND_INTEGER: OPERAND_TYPE := OPERAND_TYPE(to_unsigned(1, OPERAND_TYPE_SIZE));
+	constant OPERAND_ADDRESS: OPERAND_TYPE := '0';
+	constant OPERAND_INTEGER: OPERAND_TYPE := '1';
 
-	type OPERAND is record
-		kind: OPERAND_TYPE;
+	type OPERAND_RIGHT is record
+		mode: OPERAND_TYPE;
 		value: CPU_INTEGER_TYPE;
 	end record;
 
-	constant OPERAND_SIZE: integer := OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE;
+	constant OPERAND_RIGHT_SIZE: integer := OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE;
 
 	type INSTRUCTION is record
-		mnemonic_type: MNEMONIC_TYPE;
-		operand_left: OPERAND;
-		operand_right: OPERAND;
+		opcode_type: OPCODE_TYPE;
+		-- The left operand is always an address --
+		operand_left: CPU_INTEGER_TYPE;
+		operand_right: OPERAND_RIGHT;
 	end record;
 
 	-----------------------------------------------------------------
 	-- Instruction size is always the same.                        --
-	-- mnemonic type size + operand left size + operand right size --
+	-- opcode type size + operand left size + operand right size   --
 	-----------------------------------------------------------------
-	constant INSTRUCTION_SIZE: integer := MNEMONIC_TYPE_SIZE + (2 * OPERAND_SIZE);
+	constant INSTRUCTION_SIZE: integer := OPCODE_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + OPERAND_RIGHT_SIZE;
 
 	function HandleALUOperations
 	(

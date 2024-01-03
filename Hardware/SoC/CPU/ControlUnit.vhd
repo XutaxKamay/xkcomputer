@@ -95,20 +95,15 @@ architecture ControlUnit_Implementation of ControlUnit is
 	variable decoded_instruction: INSTRUCTION;
 	variable count_bits: integer := 0;
 	begin
-		decoded_instruction.mnemonic_type := instruction_in_bits(
-			(MNEMONIC_TYPE_SIZE - 1) + count_bits downto count_bits);
-		count_bits := count_bits + MNEMONIC_TYPE_SIZE;
+		decoded_instruction.opcode_type := instruction_in_bits(
+			(OPCODE_TYPE_SIZE - 1) + count_bits downto count_bits);
+		count_bits := count_bits + OPCODE_TYPE_SIZE;
 
-		decoded_instruction.operand_left.kind := instruction_in_bits(
-			(OPERAND_TYPE_SIZE - 1) + count_bits downto count_bits);
-		count_bits := count_bits + OPERAND_TYPE_SIZE;
-
-		decoded_instruction.operand_left.value := CPU_INTEGER_TYPE(
+		decoded_instruction.operand_left := CPU_INTEGER_TYPE(
 			instruction_in_bits((CPU_INTEGER_TYPE_SIZE - 1) + count_bits downto count_bits));
 		count_bits := count_bits + CPU_INTEGER_TYPE_SIZE;
 
-		decoded_instruction.operand_right.kind := instruction_in_bits(
-			(OPERAND_TYPE_SIZE - 1) + count_bits downto count_bits);
+		decoded_instruction.operand_right.mode := instruction_in_bits(count_bits);
 		count_bits := count_bits + OPERAND_TYPE_SIZE;
 
 		decoded_instruction.operand_right.value := CPU_INTEGER_TYPE(instruction_in_bits(
@@ -117,6 +112,43 @@ architecture ControlUnit_Implementation of ControlUnit is
 
 		return decoded_instruction;
 	end DecodeInstruction;
+
+	procedure DoALUInstruction
+	(
+		alu_operation_type: in ALU_OPERATION_TYPE;
+		decoded_instruction: in INSTRUCTION;
+		signal signal_bit_read: inout BIT_READ;
+		overflow_flag: inout std_logic;
+		signal signal_has_error: inout std_logic;
+		address_in: inout CPU_ADDRESS_TYPE
+
+	) is
+		variable temporary_integer_bit_vec: std_logic_vector((CPU_INTEGER_TYPE_SIZE - 1) downto 0);
+		variable temporary_integer: CPU_INTEGER_TYPE;
+		variable temporary_alu_integer_out: ALU_INTEGER_OUT_TYPE;
+	begin
+		ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
+		temporary_integer := CPU_INTEGER_TYPE(temporary_integer_bit_vec);
+
+		case decoded_instruction.operand_right.mode is
+			when OPERAND_ADDRESS =>
+				address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
+				ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
+				temporary_alu_integer_out := HandleALUOperations(alu_operation_type,
+																 temporary_integer,
+																 CPU_INTEGER_TYPE(temporary_integer_bit_vec));
+				signal_has_error <= '0';
+			when OPERAND_INTEGER =>
+				temporary_alu_integer_out := HandleALUOperations(alu_operation_type,
+																 temporary_integer,
+																 decoded_instruction.operand_right.value);
+				signal_has_error <= '0';
+			when others =>
+				signal_has_error <= '1';
+		end case;
+
+		overflow_flag := temporary_alu_integer_out.overflow;
+	end DoALUInstruction; 
 
 	procedure ExecuteInstruction
 	(
@@ -129,59 +161,88 @@ architecture ControlUnit_Implementation of ControlUnit is
 	) is
 		variable address_in: CPU_ADDRESS_TYPE;
 	begin
-		case decoded_instruction.mnemonic_type is
-			when MNEMONIC_TYPE_SET =>
+		-- First operand is always an address --
+		address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
+
+		case decoded_instruction.opcode_type is
+			when OPCODE_TYPE_SET =>
+
 				------------------------------------------------------------
+				-- NOTE:                                                  --
 				-- Set is basically, get the address of the left operand, --
 				-- and set it to the right operand integer value.         --
-				-- We will find an use of operand.kind later, but it is   --
+				-- We will find an use of operand.mode later, but it is   --
 				-- ignored for now.                                       --
 				------------------------------------------------------------
-				address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left.value, CPU_ADDRESS_TYPE_SIZE));
 				WriteMemory(address_in,
 							signal_bit_write,
 							std_logic_vector(resize(decoded_instruction.operand_right.value, CPU_INTEGER_TYPE_SIZE)));
 				signal_has_error <= '0';
-			when MNEMONIC_TYPE_OR => 
+
+			when OPCODE_TYPE_OR =>
+				DoALUInstruction(ALU_OPERATION_TYPE_OR,
+								 decoded_instruction,
+								 signal_bit_read,
+								 overflow_flag,
+								 signal_has_error,
+								 address_in);
+			when OPCODE_TYPE_AND =>
+				DoALUInstruction(ALU_OPERATION_TYPE_AND,
+								 decoded_instruction,
+								 signal_bit_read,
+								 overflow_flag,
+								 signal_has_error,
+								 address_in);
+			when OPCODE_TYPE_NOT =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
-			when MNEMONIC_TYPE_AND =>
+			when OPCODE_TYPE_ADD =>
+				DoALUInstruction(ALU_OPERATION_TYPE_ADD,
+								 decoded_instruction,
+								 signal_bit_read,
+								 overflow_flag,
+								 signal_has_error,
+								 address_in);
+			when OPCODE_TYPE_SUBSTRACT =>
+				DoALUInstruction(ALU_OPERATION_TYPE_SUBTRACT,
+								 decoded_instruction,
+								 signal_bit_read,
+								 overflow_flag,
+								 signal_has_error,
+								 address_in);
+			when OPCODE_TYPE_DIVISION =>
+				DoALUInstruction(ALU_OPERATION_TYPE_DIVISION,
+								 decoded_instruction,
+								 signal_bit_read,
+								 overflow_flag,
+								 signal_has_error,
+								 address_in);
+			when OPCODE_TYPE_MULTIPLY =>
+				DoALUInstruction(ALU_OPERATION_TYPE_MULTIPLY,
+								 decoded_instruction,
+								 signal_bit_read,
+								 overflow_flag,
+								 signal_has_error,
+								 address_in);
+			when OPCODE_TYPE_READ_INTEGER =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
-			when MNEMONIC_TYPE_NOT =>
+			when OPCODE_TYPE_WRITE_INTEGER =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
-			when MNEMONIC_TYPE_ADD =>
+			when OPCODE_TYPE_IS_BIGGER =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
-			when MNEMONIC_TYPE_SUBSTRACT =>
+			when OPCODE_TYPE_IS_LOWER => 
 				address_in := (others => '0');
 				signal_has_error <= '0';
-			when MNEMONIC_TYPE_DIVISION =>
+			when OPCODE_TYPE_IS_EQUAL =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
-			when MNEMONIC_TYPE_MULTIPLY =>
+			when OPCODE_TYPE_HAD_INTEGER_OVERFLOW =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
-			when MNEMONIC_TYPE_READ_INTEGER =>
-				address_in := (others => '0');
-				signal_has_error <= '0';
-			when MNEMONIC_TYPE_WRITE_INTEGER =>
-				address_in := (others => '0');
-				signal_has_error <= '0';
-			when MNEMONIC_TYPE_IS_BIGGER =>
-				address_in := (others => '0');
-				signal_has_error <= '0';
-			when MNEMONIC_TYPE_IS_LOWER => 
-				address_in := (others => '0');
-				signal_has_error <= '0';
-			when MNEMONIC_TYPE_IS_EQUAL =>
-				address_in := (others => '0');
-				signal_has_error <= '0';
-			when MNEMONIC_TYPE_HAD_INTEGER_OVERFLOW =>
-				address_in := (others => '0');
-				signal_has_error <= '0';
-			when MNEMONIC_TYPE_JUMP =>
+			when OPCODE_TYPE_JUMP =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
 			when others =>
