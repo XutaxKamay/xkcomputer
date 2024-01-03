@@ -15,7 +15,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 
 	subtype INSTRUCTION_BIT_VECTOR is std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
 
-	-- General control unit state --
+	-- General control unit states --
 	type UNIT_STATE is
 	(
 		UNIT_STATE_NOT_RUNNING,
@@ -95,6 +95,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 	variable decoded_instruction: INSTRUCTION;
 	variable count_bits: integer := 0;
 	begin
+		-- Simply decodes into INSTRUCTION --
 		decoded_instruction.opcode_type := instruction_in_bits(
 			(OPCODE_TYPE_SIZE - 1) + count_bits downto count_bits);
 		count_bits := count_bits + OPCODE_TYPE_SIZE;
@@ -127,6 +128,8 @@ architecture ControlUnit_Implementation of ControlUnit is
 		variable temporary_integer: CPU_INTEGER_TYPE;
 		variable temporary_alu_integer_out: ALU_INTEGER_OUT_TYPE;
 	begin
+		-- First operand is always an address for the ALU --
+		address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
 		ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
 		temporary_integer := CPU_INTEGER_TYPE(temporary_integer_bit_vec);
 
@@ -137,17 +140,24 @@ architecture ControlUnit_Implementation of ControlUnit is
 				temporary_alu_integer_out := HandleALUOperations(alu_operation_type,
 																 temporary_integer,
 																 CPU_INTEGER_TYPE(temporary_integer_bit_vec));
+
 				signal_has_error <= '0';
+
 			when OPERAND_INTEGER =>
 				temporary_alu_integer_out := HandleALUOperations(alu_operation_type,
 																 temporary_integer,
 																 decoded_instruction.operand_right.value);
+
 				signal_has_error <= '0';
+
+			-- Others states, shouldn't happen, but who knows --
 			when others =>
 				signal_has_error <= '1';
 		end case;
 
+		-- keep track of overflow flag --
 		overflow_flag := temporary_alu_integer_out.overflow;
+
 	end DoALUInstruction; 
 
 	procedure ExecuteInstruction
@@ -160,24 +170,42 @@ architecture ControlUnit_Implementation of ControlUnit is
 		signal signal_has_error: inout std_logic
 	) is
 		variable address_in: CPU_ADDRESS_TYPE;
+		variable temporary_integer_bit_vec: std_logic_vector((CPU_INTEGER_TYPE_SIZE - 1) downto 0);
 	begin
-		-- First operand is always an address --
-		address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
-
 		case decoded_instruction.opcode_type is
 			when OPCODE_TYPE_SET =>
-
 				------------------------------------------------------------
 				-- NOTE:                                                  --
 				-- Set is basically, get the address of the left operand, --
 				-- and set it to the right operand integer value.         --
-				-- We will find an use of operand.mode later, but it is   --
-				-- ignored for now.                                       --
 				------------------------------------------------------------
-				WriteMemory(address_in,
-							signal_bit_write,
-							std_logic_vector(resize(decoded_instruction.operand_right.value, CPU_INTEGER_TYPE_SIZE)));
-				signal_has_error <= '0';
+				case decoded_instruction.operand_right.mode is
+					when OPERAND_ADDRESS =>
+						-- First get the address of the right operand and read the address --
+						address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
+						ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
+
+						-- Write the result --
+						address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
+						WriteMemory(address_in,
+									signal_bit_write,
+									temporary_integer_bit_vec);
+
+						signal_has_error <= '0';
+		
+					when OPERAND_INTEGER =>
+						address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
+						WriteMemory(address_in,
+									signal_bit_write,
+									std_logic_vector(resize(decoded_instruction.operand_right.value,
+															CPU_INTEGER_TYPE_SIZE)));
+
+						signal_has_error <= '0';
+		
+					-- Others states, shouldn't happen, but who knows --
+					when others =>
+						signal_has_error <= '1';
+				end case;
 
 			when OPCODE_TYPE_OR =>
 				DoALUInstruction(ALU_OPERATION_TYPE_OR,
@@ -186,6 +214,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 								 overflow_flag,
 								 signal_has_error,
 								 address_in);
+
 			when OPCODE_TYPE_AND =>
 				DoALUInstruction(ALU_OPERATION_TYPE_AND,
 								 decoded_instruction,
@@ -193,9 +222,45 @@ architecture ControlUnit_Implementation of ControlUnit is
 								 overflow_flag,
 								 signal_has_error,
 								 address_in);
+
 			when OPCODE_TYPE_NOT =>
-				address_in := (others => '0');
-				signal_has_error <= '0';
+			    -------------------------------------------------
+				-- NOTE:                                       --
+				-- Special type of operator,                   --
+				-- Similar to set as above,                    --
+				-- set the not value                           --
+				-- by directly by writing to memory            --
+				-------------------------------------------------
+				case decoded_instruction.operand_right.mode is
+					when OPERAND_ADDRESS =>
+						-- First get the address of the right operand and read the address --
+						address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
+						ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
+
+						-- Apply not operator --
+						temporary_integer_bit_vec := not temporary_integer_bit_vec;
+
+						-- Write the result --
+						address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
+						WriteMemory(address_in,
+									signal_bit_write,
+									temporary_integer_bit_vec);
+
+						signal_has_error <= '0';
+		
+					when OPERAND_INTEGER =>
+						address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
+						WriteMemory(address_in,
+									signal_bit_write,
+									std_logic_vector(resize(not decoded_instruction.operand_right.value,
+															CPU_INTEGER_TYPE_SIZE)));
+						signal_has_error <= '0';
+		
+					-- Others states, shouldn't happen, but who knows --
+					when others =>
+						signal_has_error <= '1';
+				end case;
+
 			when OPCODE_TYPE_ADD =>
 				DoALUInstruction(ALU_OPERATION_TYPE_ADD,
 								 decoded_instruction,
@@ -203,6 +268,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 								 overflow_flag,
 								 signal_has_error,
 								 address_in);
+
 			when OPCODE_TYPE_SUBSTRACT =>
 				DoALUInstruction(ALU_OPERATION_TYPE_SUBTRACT,
 								 decoded_instruction,
@@ -210,6 +276,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 								 overflow_flag,
 								 signal_has_error,
 								 address_in);
+
 			when OPCODE_TYPE_DIVISION =>
 				DoALUInstruction(ALU_OPERATION_TYPE_DIVISION,
 								 decoded_instruction,
@@ -217,6 +284,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 								 overflow_flag,
 								 signal_has_error,
 								 address_in);
+
 			when OPCODE_TYPE_MULTIPLY =>
 				DoALUInstruction(ALU_OPERATION_TYPE_MULTIPLY,
 								 decoded_instruction,
@@ -224,6 +292,7 @@ architecture ControlUnit_Implementation of ControlUnit is
 								 overflow_flag,
 								 signal_has_error,
 								 address_in);
+
 			when OPCODE_TYPE_READ_INTEGER =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
@@ -243,6 +312,9 @@ architecture ControlUnit_Implementation of ControlUnit is
 				address_in := (others => '0');
 				signal_has_error <= '0';
 			when OPCODE_TYPE_JUMP =>
+				address_in := (others => '0');
+				signal_has_error <= '0';
+			when OPCODE_TYPE_BRANCH =>
 				address_in := (others => '0');
 				signal_has_error <= '0';
 			when others =>
@@ -276,7 +348,7 @@ begin
 	begin
 		if rising_edge(reset) then
 			signal_reset_request <= '1';
-			if woke_up = '0' then
+			if woke_up /= '1' then
 				woke_up := '1';
 				signal_wake_up <= '1';
 			end if;
@@ -291,46 +363,43 @@ begin
 		variable var_program_counter: CPU_ADDRESS_TYPE := (others => '0');
     begin
 		-- Reset has been raised --
-		if signal_reset_request = '1' then
+		if signal_reset_request /= '0' then
 			-- CPU Reset --
 			var_program_counter := (others => '0');
 			-- Will trigger again a new process execution --
 			signal_reset_request <= '0';
 			signal_unit_state <= UNIT_STATE_NOT_RUNNING;
-		else
-			case signal_unit_state is
-				-- Always start by fetching --
-				when UNIT_STATE_NOT_RUNNING =>
-					signal_unit_state <= UNIT_STATE_FETCHING_INSTRUCTION;
-
-				-- Fetch the instruction first --
-				when UNIT_STATE_FETCHING_INSTRUCTION =>
-
-					-- Fetch instruction from memory --
-					ReadMemory(var_program_counter, signal_bit_read, var_instruction_fetched);
-
-					-- Decode instruction --
-					var_decoded_instruction := DecodeInstruction(var_instruction_fetched);
-
-					-- And then signal to execute instruction --
-					signal_unit_state <= UNIT_STATE_EXECUTING_INSTRUCTION;
-
-				-- Then executes the instruction --
-				when UNIT_STATE_EXECUTING_INSTRUCTION =>
-
-					-- Execute instruction --
-					ExecuteInstruction(var_decoded_instruction,
-									signal_bit_read,
-									signal_bit_write,
-									var_program_counter,
-									var_overflow_flag,
-									has_error);
-
-					-- Fetch again instruction --
-					signal_unit_state <= UNIT_STATE_FETCHING_INSTRUCTION;
-
-			end case;
 		end if;
+
+		case signal_unit_state is
+			-- Always start by fetching --
+			when UNIT_STATE_NOT_RUNNING =>
+				signal_unit_state <= UNIT_STATE_FETCHING_INSTRUCTION;
+
+			-- Fetch the instruction first --
+			when UNIT_STATE_FETCHING_INSTRUCTION =>
+				-- Fetch instruction from memory --
+				ReadMemory(var_program_counter, signal_bit_read, var_instruction_fetched);
+
+				-- Decode instruction --
+				var_decoded_instruction := DecodeInstruction(var_instruction_fetched);
+
+				-- And then signal to execute instruction --
+				signal_unit_state <= UNIT_STATE_EXECUTING_INSTRUCTION;
+
+			-- Then we execute the instruction --
+			when UNIT_STATE_EXECUTING_INSTRUCTION =>
+				-- Execute instruction --
+				ExecuteInstruction(var_decoded_instruction,
+								signal_bit_read,
+								signal_bit_write,
+								var_program_counter,
+								var_overflow_flag,
+								has_error);
+
+				-- Fetch again next instruction --
+				signal_unit_state <= UNIT_STATE_FETCHING_INSTRUCTION;
+		end case;
 	end process;
 
 end ControlUnit_Implementation;

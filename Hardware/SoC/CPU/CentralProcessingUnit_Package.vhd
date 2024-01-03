@@ -61,6 +61,7 @@ package CentralProcessingUnit_Package is
 	constant OPCODE_TYPE_IS_EQUAL: OPCODE_TYPE := "1100";
 	constant OPCODE_TYPE_HAD_INTEGER_OVERFLOW: OPCODE_TYPE := "1101";
 	constant OPCODE_TYPE_JUMP: OPCODE_TYPE := "1110";
+	constant OPCODE_TYPE_BRANCH: OPCODE_TYPE := "1111";
 	
 	subtype OPERAND_TYPE is std_logic;
 	constant OPERAND_TYPE_SIZE: integer := 1;
@@ -114,18 +115,23 @@ package body CentralProcessingUnit_Package is
 		case operation_type is
 			when ALU_OPERATION_TYPE_ADD =>
 				temporary_resulting_integer := integer_in_left + integer_in_right;
+
 			when ALU_OPERATION_TYPE_SUBTRACT =>
 				temporary_resulting_integer := integer_in_left - integer_in_right;
+
 			when ALU_OPERATION_TYPE_DIVISION =>
 				if integer_in_right = 0 then
 					division_by_zero := true;
 				else
 					temporary_resulting_integer := integer_in_left / integer_in_right;
 				end if;
+
 			when ALU_OPERATION_TYPE_MULTIPLY =>
 				temporary_resulting_integer := integer_in_left * integer_in_right;
+
 			when ALU_OPERATION_TYPE_OR =>
 				temporary_resulting_integer := integer_in_left or integer_in_right;
+
 			when ALU_OPERATION_TYPE_AND =>
 				temporary_resulting_integer := integer_in_left and integer_in_right;
 		end case;
