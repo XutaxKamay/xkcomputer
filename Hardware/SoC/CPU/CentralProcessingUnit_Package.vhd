@@ -53,8 +53,8 @@ package CentralProcessingUnit_Package is
     constant OPCODE_TYPE_DIVISION: OPCODE_TYPE := "0110";
     constant OPCODE_TYPE_MULTIPLY: OPCODE_TYPE := "0111";
     -- Memory instructions --
-    constant OPCODE_TYPE_READ_INTEGER: OPCODE_TYPE := "1000";
-    constant OPCODE_TYPE_WRITE_INTEGER: OPCODE_TYPE := "1001";
+    constant OPCODE_TYPE_READ: OPCODE_TYPE := "1000";
+    constant OPCODE_TYPE_WRITE: OPCODE_TYPE := "1001";
     -- Branch instructions --
     constant OPCODE_TYPE_IS_BIGGER: OPCODE_TYPE := "1010";
     constant OPCODE_TYPE_IS_LOWER: OPCODE_TYPE := "1011";
@@ -62,7 +62,19 @@ package CentralProcessingUnit_Package is
     constant OPCODE_TYPE_HAD_INTEGER_OVERFLOW: OPCODE_TYPE := "1101";
     -- Will be used for both jumping and branches --
     constant OPCODE_TYPE_JUMP: OPCODE_TYPE := "1110";
-    
+    -----------------------------------------------------
+    -- Will be used to set a special internal register --
+    -- for per bit or per integer writes or read       --
+    -- into memory                                     --
+    -----------------------------------------------------
+    constant OPCODE_TYPE_IO_MEMORY_TYPE: OPCODE_TYPE := "1111";
+
+    type IO_MEMORY_TYPE is
+    (
+        IO_MEMORY_TYPE_INTEGER,
+        IO_MEMORY_TYPE_BIT
+    );
+
     subtype OPERAND_TYPE is std_logic;
     constant OPERAND_TYPE_SIZE: integer := 1;
 
@@ -88,6 +100,7 @@ package CentralProcessingUnit_Package is
     -- opcode type size + operand left size + operand right size   --
     -----------------------------------------------------------------
     constant INSTRUCTION_SIZE: integer := OPCODE_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + OPERAND_RIGHT_SIZE;
+    constant MEMORY_MAX_WORD_SIZE: integer := INSTRUCTION_SIZE;
 
     function HandleALUOperations
     (

@@ -26,14 +26,14 @@ architecture ControlUnit_Implementation of ControlUnit is
     type BIT_READ is record
         address_in: CPU_ADDRESS_TYPE;
         request_size: CPU_ADDRESS_TYPE;
-        value_out: std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
+        value_out: std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
         done_job: std_logic;
     end record;
 
     type BIT_WRITE is record
         address_in: CPU_ADDRESS_TYPE;
         request_size: CPU_ADDRESS_TYPE;
-        value_in: std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
+        value_in: std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
         done_job: std_logic;
     end record;
 
@@ -42,7 +42,7 @@ architecture ControlUnit_Implementation of ControlUnit is
         (
             address_in: in CPU_ADDRESS_TYPE;
             request_size: in CPU_ADDRESS_TYPE;
-            value_out: out std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
+            value_out: out std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
             done_job: out std_logic
         );
     end component;
@@ -52,7 +52,7 @@ architecture ControlUnit_Implementation of ControlUnit is
         (
             address_in: in CPU_ADDRESS_TYPE;
             request_size: in CPU_ADDRESS_TYPE;
-            value_in: in std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
+            value_in: in std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
             done_job: out std_logic
         );
     end component;
@@ -293,10 +293,10 @@ architecture ControlUnit_Implementation of ControlUnit is
                                  signal_has_error,
                                  address_in);
 
-            when OPCODE_TYPE_READ_INTEGER =>
+            when OPCODE_TYPE_READ =>
                 address_in := (others => '0');
                 signal_has_error <= '0';
-            when OPCODE_TYPE_WRITE_INTEGER =>
+            when OPCODE_TYPE_WRITE =>
                 address_in := (others => '0');
                 signal_has_error <= '0';
             when OPCODE_TYPE_IS_BIGGER =>
@@ -314,6 +314,9 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_JUMP =>
                 address_in := (others => '0');
                 signal_has_error <= '0';
+            when OPCODE_TYPE_IO_MEMORY_TYPE =>
+                address_in := (others => '0');
+                signal_has_error <= '0';                
             when others =>
                 signal_has_error <= '1';
         end case;
@@ -360,6 +363,7 @@ begin
         variable var_instruction_fetched: INSTRUCTION_BIT_VECTOR;
         variable var_overflow_flag: std_logic := '0'; 
         variable var_program_counter: CPU_ADDRESS_TYPE := (others => '0');
+        variable var_io_memory_type: std_logic := '0';
     begin
         -- Reset has been raised --
         if signal_reset_request /= '0' then

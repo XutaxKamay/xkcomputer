@@ -8,7 +8,7 @@ entity MemoryWrite is
     (
         address_in: in CPU_ADDRESS_TYPE;
         request_size: in CPU_ADDRESS_TYPE;
-        value_in: in std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
+        value_in: in std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
         done_job: out std_logic
     );
 end MemoryWrite;
