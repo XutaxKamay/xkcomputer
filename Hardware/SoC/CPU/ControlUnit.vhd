@@ -69,6 +69,7 @@ architecture ControlUnit_Implementation of ControlUnit is
         while (signal_bit_read.done_job /= '1') loop
         end loop;
         vector := signal_bit_read.value_out;
+        address_in := address_in + signal_bit_read.request_size;
         signal_bit_read.done_job <= '0';
     end procedure;
 
@@ -84,6 +85,7 @@ architecture ControlUnit_Implementation of ControlUnit is
         signal_bit_write.value_in <= vector;
         while (signal_bit_write.done_job /= '1') loop
         end loop;
+        address_in := address_in + signal_bit_write.request_size;
         signal_bit_write.done_job <= '0';
     end procedure;
 
@@ -119,7 +121,7 @@ architecture ControlUnit_Implementation of ControlUnit is
         alu_operation_type: in ALU_OPERATION_TYPE;
         decoded_instruction: in INSTRUCTION;
         signal signal_bit_read: inout BIT_READ;
-        overflow_flag: inout std_logic;
+        signal overflow_flag: inout std_logic;
         signal signal_has_error: inout std_logic;
         address_in: inout CPU_ADDRESS_TYPE
 
@@ -156,7 +158,7 @@ architecture ControlUnit_Implementation of ControlUnit is
         end case;
 
         -- keep track of overflow flag --
-        overflow_flag := temporary_alu_integer_out.overflow;
+        overflow_flag <= temporary_alu_integer_out.overflow;
 
     end DoALUInstruction; 
 
@@ -165,8 +167,8 @@ architecture ControlUnit_Implementation of ControlUnit is
         decoded_instruction: in INSTRUCTION;
         signal signal_bit_read: inout BIT_READ;
         signal signal_bit_write: inout BIT_WRITE;
-        program_counter: inout CPU_ADDRESS_TYPE;
-        overflow_flag: inout std_logic;
+        signal program_counter: inout CPU_ADDRESS_TYPE;
+        signal overflow_flag: inout std_logic;
         signal signal_has_error: inout std_logic
     ) is
         variable address_in: CPU_ADDRESS_TYPE;
@@ -327,6 +329,9 @@ architecture ControlUnit_Implementation of ControlUnit is
     signal signal_unit_state: UNIT_STATE := UNIT_STATE_NOT_RUNNING;
     signal signal_reset_request: std_logic;
     signal signal_wake_up: std_logic := '0';
+    signal signal_overflow_flag: std_logic := '0'; 
+    signal signal_program_counter: CPU_ADDRESS_TYPE := (others => '0');
+    signal signal_io_memory_type: std_logic := '0';
 begin
     MemoryReadInstance: MemoryRead port map
     (
@@ -361,14 +366,12 @@ begin
     process (signal_wake_up, signal_unit_state)
         variable var_decoded_instruction: INSTRUCTION;
         variable var_instruction_fetched: INSTRUCTION_BIT_VECTOR;
-        variable var_overflow_flag: std_logic := '0'; 
-        variable var_program_counter: CPU_ADDRESS_TYPE := (others => '0');
-        variable var_io_memory_type: std_logic := '0';
+        variable var_address_in: CPU_ADDRESS_TYPE;
     begin
         -- Reset has been raised --
         if signal_reset_request /= '0' then
             -- CPU Reset --
-            var_program_counter := (others => '0');
+            signal_program_counter <= (others => '0');
             -- Will trigger again a new process execution --
             signal_reset_request <= '0';
             signal_unit_state <= UNIT_STATE_NOT_RUNNING;
@@ -381,8 +384,12 @@ begin
 
             -- Fetch the instruction first --
             when UNIT_STATE_FETCHING_INSTRUCTION =>
+                var_address_in := signal_program_counter;
+
                 -- Fetch instruction from memory --
-                ReadMemory(var_program_counter, signal_bit_read, var_instruction_fetched);
+                ReadMemory(var_address_in, signal_bit_read, var_instruction_fetched);
+
+                signal_program_counter <= var_address_in;
 
                 -- Decode instruction --
                 var_decoded_instruction := DecodeInstruction(var_instruction_fetched);
@@ -396,8 +403,8 @@ begin
                 ExecuteInstruction(var_decoded_instruction,
                                 signal_bit_read,
                                 signal_bit_write,
-                                var_program_counter,
-                                var_overflow_flag,
+                                signal_program_counter,
+                                signal_overflow_flag,
                                 has_error);
 
                 -- Fetch again next instruction --
