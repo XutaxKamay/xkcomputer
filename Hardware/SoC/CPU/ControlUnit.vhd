@@ -25,13 +25,15 @@ architecture ControlUnit_Implementation of ControlUnit is
 
     type BIT_READ is record
         address_in: CPU_ADDRESS_TYPE;
-        value_out: std_logic;
+        request_size: CPU_ADDRESS_TYPE;
+        value_out: std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
         done_job: std_logic;
     end record;
 
     type BIT_WRITE is record
         address_in: CPU_ADDRESS_TYPE;
-        value_in: std_logic;
+        request_size: CPU_ADDRESS_TYPE;
+        value_in: std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
         done_job: std_logic;
     end record;
 
@@ -39,7 +41,8 @@ architecture ControlUnit_Implementation of ControlUnit is
         port
         (
             address_in: in CPU_ADDRESS_TYPE;
-            value_out: out std_logic;
+            request_size: in CPU_ADDRESS_TYPE;
+            value_out: out std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
             done_job: out std_logic
         );
     end component;
@@ -48,7 +51,8 @@ architecture ControlUnit_Implementation of ControlUnit is
         port
         (
             address_in: in CPU_ADDRESS_TYPE;
-            value_in: in std_logic;
+            request_size: in CPU_ADDRESS_TYPE;
+            value_in: in std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
             done_job: out std_logic
         );
     end component;
@@ -60,14 +64,12 @@ architecture ControlUnit_Implementation of ControlUnit is
         vector: out std_logic_vector
     ) is
     begin
-        for i in 0 to vector'length loop
-            signal_bit_read.done_job <= '0';
-            signal_bit_read.address_in <= address_in;
-            address_in := address_in + 1;
-            while (signal_bit_read.done_job /= '1') loop
-            end loop;
-            vector(i) := signal_bit_read.value_out;
+        signal_bit_read.address_in <= address_in;
+        signal_bit_read.request_size <= to_unsigned(vector'length, CPU_ADDRESS_TYPE_SIZE);
+        while (signal_bit_read.done_job /= '1') loop
         end loop;
+        vector := signal_bit_read.value_out;
+        signal_bit_read.done_job <= '0';
     end procedure;
 
     procedure WriteMemory
@@ -77,14 +79,12 @@ architecture ControlUnit_Implementation of ControlUnit is
         vector: in std_logic_vector
     ) is
     begin
-        for i in 0 to vector'length loop
-            signal_bit_write.done_job <= '0';
-            signal_bit_write.address_in <= address_in;
-            signal_bit_write.value_in <= vector(i);
-            address_in := address_in + 1;
-            while (signal_bit_write.done_job /= '1') loop
-            end loop;
+        signal_bit_write.address_in <= address_in;
+        signal_bit_write.request_size <= to_unsigned(vector'length, CPU_ADDRESS_TYPE_SIZE);
+        signal_bit_write.value_in <= vector;
+        while (signal_bit_write.done_job /= '1') loop
         end loop;
+        signal_bit_write.done_job <= '0';
     end procedure;
 
     function DecodeInstruction
@@ -328,6 +328,7 @@ begin
     MemoryReadInstance: MemoryRead port map
     (
         address_in => signal_bit_read.address_in,
+        request_size => signal_bit_read.request_size,
         value_out => signal_bit_read.value_out,
         done_job => signal_bit_read.done_job
     );
@@ -335,6 +336,7 @@ begin
     MemoryWriteInstance: MemoryWrite port map
     (
         address_in => signal_bit_write.address_in,
+        request_size => signal_bit_write.request_size,
         value_in => signal_bit_write.value_in,
         done_job => signal_bit_write.done_job
     );

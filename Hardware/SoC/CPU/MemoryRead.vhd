@@ -7,7 +7,8 @@ entity MemoryRead is
     port
     (
         address_in: in CPU_ADDRESS_TYPE;
-        value_out: out std_logic;
+        request_size: in CPU_ADDRESS_TYPE;
+        value_out: out std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
         done_job: out std_logic
     );
 end MemoryRead;
