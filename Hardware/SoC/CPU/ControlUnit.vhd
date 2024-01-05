@@ -23,70 +23,57 @@ architecture ControlUnit_Implementation of ControlUnit is
         UNIT_STATE_EXECUTING_INSTRUCTION
     );
 
-    type BIT_READ is record
+    type MEMORY_RECORD is record
+        request: std_logic;
         address_in: CPU_ADDRESS_TYPE;
         request_size: CPU_ADDRESS_TYPE;
-        value_out: std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
-        done_job: std_logic;
+        mode: MEMORY_MODE_TYPE;
+        value: std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
     end record;
 
-    type BIT_WRITE is record
-        address_in: CPU_ADDRESS_TYPE;
-        request_size: CPU_ADDRESS_TYPE;
-        value_in: std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
-        done_job: std_logic;
-    end record;
-
-    component MemoryRead is
+    component Memory is
         port
         (
+            request: inout std_logic;
             address_in: in CPU_ADDRESS_TYPE;
             request_size: in CPU_ADDRESS_TYPE;
-            value_out: out std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
-            done_job: out std_logic
-        );
-    end component;
-
-    component MemoryWrite is
-        port
-        (
-            address_in: in CPU_ADDRESS_TYPE;
-            request_size: in CPU_ADDRESS_TYPE;
-            value_in: in std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
-            done_job: out std_logic
+            mode: in MEMORY_MODE_TYPE;
+            value: inout std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0)
         );
     end component;
 
     procedure ReadMemory
     (
         address_in: inout CPU_ADDRESS_TYPE;
-        signal signal_bit_read: inout BIT_READ;
+        signal signal_memory_record: inout MEMORY_RECORD;
         vector: out std_logic_vector
     ) is
     begin
-        signal_bit_read.address_in <= address_in;
-        signal_bit_read.request_size <= to_unsigned(vector'length, CPU_ADDRESS_TYPE_SIZE);
-        while (signal_bit_read.done_job /= '1') loop
+        signal_memory_record.mode <= MEMORY_MODE_READ;
+        signal_memory_record.address_in <= address_in;
+        signal_memory_record.request_size <= to_unsigned(vector'length, CPU_ADDRESS_TYPE_SIZE);
+        signal_memory_record.request <= '1';
+        while (signal_memory_record.request /= '0') loop
         end loop;
-        vector := signal_bit_read.value_out;
-        address_in := address_in + signal_bit_read.request_size;
-        signal_bit_read.done_job <= '0';
+        vector := signal_memory_record.value;
+        address_in := address_in + signal_memory_record.request_size;
     end procedure;
 
     procedure WriteMemory
     (
         address_in: inout CPU_ADDRESS_TYPE;
-        signal signal_bit_write: inout BIT_WRITE;
+        signal signal_memory_record: inout MEMORY_RECORD;
         vector: in std_logic_vector
     ) is
     begin
-        signal_bit_write.address_in <= address_in;
-        signal_bit_write.request_size <= to_unsigned(vector'length, CPU_ADDRESS_TYPE_SIZE);
-        signal_bit_write.value_in <= vector;
-        while (signal_bit_write.done_job /= '1') loop
+        signal_memory_record.mode <= MEMORY_MODE_WRITE;
+        signal_memory_record.address_in <= address_in;
+        signal_memory_record.request_size <= to_unsigned(vector'length, CPU_ADDRESS_TYPE_SIZE);
+        signal_memory_record.value <= vector;
+        signal_memory_record.request <= '1';
+        while (signal_memory_record.request /= '0') loop
         end loop;
-        address_in := address_in + signal_bit_write.request_size;
-        signal_bit_write.done_job <= '0';
+        address_in := address_in + signal_memory_record.request_size;
     end procedure;
 
     function DecodeInstruction
@@ -120,7 +107,7 @@ architecture ControlUnit_Implementation of ControlUnit is
     (
         alu_operation_type: in ALU_OPERATION_TYPE;
         decoded_instruction: in INSTRUCTION;
-        signal signal_bit_read: inout BIT_READ;
+        signal signal_memory_record: inout MEMORY_RECORD;
         signal overflow_flag: inout std_logic;
         signal signal_has_error: inout std_logic;
         address_in: inout CPU_ADDRESS_TYPE
@@ -132,13 +119,13 @@ architecture ControlUnit_Implementation of ControlUnit is
     begin
         -- First operand is always an address for the ALU --
         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
-        ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
+        ReadMemory(address_in, signal_memory_record, temporary_integer_bit_vec);
         temporary_integer := CPU_INTEGER_TYPE(temporary_integer_bit_vec);
 
         case decoded_instruction.operand_right.mode is
             when OPERAND_ADDRESS =>
                 address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
-                ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
+                ReadMemory(address_in, signal_memory_record, temporary_integer_bit_vec);
                 temporary_alu_integer_out := HandleALUOperations(alu_operation_type,
                                                                  temporary_integer,
                                                                  CPU_INTEGER_TYPE(temporary_integer_bit_vec));
@@ -165,8 +152,7 @@ architecture ControlUnit_Implementation of ControlUnit is
     procedure ExecuteInstruction
     (
         decoded_instruction: in INSTRUCTION;
-        signal signal_bit_read: inout BIT_READ;
-        signal signal_bit_write: inout BIT_WRITE;
+        signal signal_memory_record: inout MEMORY_RECORD;
         signal program_counter: inout CPU_ADDRESS_TYPE;
         signal overflow_flag: inout std_logic;
         signal signal_has_error: inout std_logic
@@ -185,12 +171,12 @@ architecture ControlUnit_Implementation of ControlUnit is
                     when OPERAND_ADDRESS =>
                         -- First get the address of the right operand and read the address --
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
-                        ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
+                        ReadMemory(address_in, signal_memory_record, temporary_integer_bit_vec);
 
                         -- Write the result --
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
                         WriteMemory(address_in,
-                                    signal_bit_write,
+                                    signal_memory_record,
                                     temporary_integer_bit_vec);
 
                         signal_has_error <= '0';
@@ -198,7 +184,7 @@ architecture ControlUnit_Implementation of ControlUnit is
                     when OPERAND_INTEGER =>
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
                         WriteMemory(address_in,
-                                    signal_bit_write,
+                                    signal_memory_record,
                                     std_logic_vector(resize(decoded_instruction.operand_right.value,
                                                             CPU_INTEGER_TYPE_SIZE)));
 
@@ -212,7 +198,7 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_OR =>
                 DoALUInstruction(ALU_OPERATION_TYPE_OR,
                                  decoded_instruction,
-                                 signal_bit_read,
+                                 signal_memory_record,
                                  overflow_flag,
                                  signal_has_error,
                                  address_in);
@@ -220,7 +206,7 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_AND =>
                 DoALUInstruction(ALU_OPERATION_TYPE_AND,
                                  decoded_instruction,
-                                 signal_bit_read,
+                                 signal_memory_record,
                                  overflow_flag,
                                  signal_has_error,
                                  address_in);
@@ -237,7 +223,7 @@ architecture ControlUnit_Implementation of ControlUnit is
                     when OPERAND_ADDRESS =>
                         -- First get the address of the right operand and read the address --
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
-                        ReadMemory(address_in, signal_bit_read, temporary_integer_bit_vec);
+                        ReadMemory(address_in, signal_memory_record, temporary_integer_bit_vec);
 
                         -- Apply not operator --
                         temporary_integer_bit_vec := not temporary_integer_bit_vec;
@@ -245,7 +231,7 @@ architecture ControlUnit_Implementation of ControlUnit is
                         -- Write the result --
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
                         WriteMemory(address_in,
-                                    signal_bit_write,
+                                    signal_memory_record,
                                     temporary_integer_bit_vec);
 
                         signal_has_error <= '0';
@@ -253,7 +239,7 @@ architecture ControlUnit_Implementation of ControlUnit is
                     when OPERAND_INTEGER =>
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
                         WriteMemory(address_in,
-                                    signal_bit_write,
+                                    signal_memory_record,
                                     std_logic_vector(resize(not decoded_instruction.operand_right.value,
                                                             CPU_INTEGER_TYPE_SIZE)));
                         signal_has_error <= '0';
@@ -266,7 +252,7 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_ADD =>
                 DoALUInstruction(ALU_OPERATION_TYPE_ADD,
                                  decoded_instruction,
-                                 signal_bit_read,
+                                 signal_memory_record,
                                  overflow_flag,
                                  signal_has_error,
                                  address_in);
@@ -274,7 +260,7 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_SUBSTRACT =>
                 DoALUInstruction(ALU_OPERATION_TYPE_SUBTRACT,
                                  decoded_instruction,
-                                 signal_bit_read,
+                                 signal_memory_record,
                                  overflow_flag,
                                  signal_has_error,
                                  address_in);
@@ -282,7 +268,7 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_DIVISION =>
                 DoALUInstruction(ALU_OPERATION_TYPE_DIVISION,
                                  decoded_instruction,
-                                 signal_bit_read,
+                                 signal_memory_record,
                                  overflow_flag,
                                  signal_has_error,
                                  address_in);
@@ -290,7 +276,7 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_MULTIPLY =>
                 DoALUInstruction(ALU_OPERATION_TYPE_MULTIPLY,
                                  decoded_instruction,
-                                 signal_bit_read,
+                                 signal_memory_record,
                                  overflow_flag,
                                  signal_has_error,
                                  address_in);
@@ -325,8 +311,7 @@ architecture ControlUnit_Implementation of ControlUnit is
         end case;
     end ExecuteInstruction;
 
-    signal signal_bit_read: BIT_READ;
-    signal signal_bit_write: BIT_WRITE;
+    signal signal_memory_record: MEMORY_RECORD;
     signal signal_unit_state: UNIT_STATE := UNIT_STATE_NOT_RUNNING;
     signal signal_reset_request: std_logic;
     signal signal_wake_up: std_logic := '0';
@@ -334,20 +319,13 @@ architecture ControlUnit_Implementation of ControlUnit is
     signal signal_program_counter: CPU_ADDRESS_TYPE := (others => '0');
     -- signal signal_integer_bit_size: integer range 1 to MAX_INTEGER_BITS := MAX_INTEGER_BITS;
 begin
-    MemoryReadInstance: MemoryRead port map
+    MemoryInstance: Memory port map
     (
-        address_in => signal_bit_read.address_in,
-        request_size => signal_bit_read.request_size,
-        value_out => signal_bit_read.value_out,
-        done_job => signal_bit_read.done_job
-    );
-
-    MemoryWriteInstance: MemoryWrite port map
-    (
-        address_in => signal_bit_write.address_in,
-        request_size => signal_bit_write.request_size,
-        value_in => signal_bit_write.value_in,
-        done_job => signal_bit_write.done_job
+        request => signal_memory_record.request,
+        address_in => signal_memory_record.address_in,
+        request_size => signal_memory_record.request_size,
+        mode => signal_memory_record.mode,
+        value => signal_memory_record.value
     );
 
     -- Handle control unit reset --
@@ -388,7 +366,7 @@ begin
                 var_address_in := signal_program_counter;
 
                 -- Fetch instruction from memory --
-                ReadMemory(var_address_in, signal_bit_read, var_instruction_fetched);
+                ReadMemory(var_address_in, signal_memory_record, var_instruction_fetched);
 
                 signal_program_counter <= var_address_in;
 
@@ -402,11 +380,10 @@ begin
             when UNIT_STATE_EXECUTING_INSTRUCTION =>
                 -- Execute instruction --
                 ExecuteInstruction(var_decoded_instruction,
-                                signal_bit_read,
-                                signal_bit_write,
-                                signal_program_counter,
-                                signal_overflow_flag,
-                                has_error);
+                                   signal_memory_record,
+                                   signal_program_counter,
+                                   signal_overflow_flag,
+                                   has_error);
 
                 -- Fetch again next instruction --
                 signal_unit_state <= UNIT_STATE_FETCHING_INSTRUCTION;

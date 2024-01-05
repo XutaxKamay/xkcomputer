@@ -4,6 +4,12 @@ use ieee.numeric_std.all;
 
 package CentralProcessingUnit_Package is
 
+    type MEMORY_MODE_TYPE is
+    (
+        MEMORY_MODE_READ,
+        MEMORY_MODE_WRITE
+    );
+
     constant MAX_INTEGER_BITS : integer := 512;
 
     subtype ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) downto 0);
