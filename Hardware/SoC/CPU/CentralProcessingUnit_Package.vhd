@@ -25,15 +25,10 @@ package CentralProcessingUnit_Package is
         ALU_OPERATION_TYPE_MULTIPLY
     );
 
-    -------------------------------------------
-    -- Yup, we can have negative addressing. --
-    -- Those aren't real though.             --
-    -- They will be still indexed,           --
-    -- but they'll be simply taken in        --
-    -- another matrix.                       --
-    -- This is mainly for making the ALU     --
-    -- and the CPU more easier.              --
-    -------------------------------------------
+    ----------------------------------------
+    -- I don't think we're going to reach --
+    -- ~18k trillion of bits yet          --
+    ----------------------------------------
     subtype CPU_ADDRESS_TYPE is unsigned(63 downto 0);
     constant CPU_ADDRESS_TYPE_SIZE: integer := CPU_ADDRESS_TYPE'length;
 
@@ -63,17 +58,15 @@ package CentralProcessingUnit_Package is
     -- Will be used for both jumping and branches --
     constant OPCODE_TYPE_JUMP: OPCODE_TYPE := "1110";
     -----------------------------------------------------
+    -- TODO:                                           --
     -- Will be used to set a special internal register --
-    -- for per bit or per integer writes or read       --
-    -- into memory                                     --
+    -- for the number of bits that an integer is       --
+    -- actually.                                       --
+    -- That would be great                             --
+    -- because we wouldn't need to play by             --
+    -- shifting bits and so on                         --
     -----------------------------------------------------
-    constant OPCODE_TYPE_IO_MEMORY_TYPE: OPCODE_TYPE := "1111";
-
-    type IO_MEMORY_TYPE is
-    (
-        IO_MEMORY_TYPE_INTEGER,
-        IO_MEMORY_TYPE_BIT
-    );
+    -- constant OPCODE_TYPE_CHANGE_INTERNAL_INTEGER_BIT_SIZE: OPCODE_TYPE := "1111";
 
     subtype OPERAND_TYPE is std_logic;
     constant OPERAND_TYPE_SIZE: integer := 1;

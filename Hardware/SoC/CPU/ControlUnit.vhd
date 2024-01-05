@@ -316,9 +316,10 @@ architecture ControlUnit_Implementation of ControlUnit is
             when OPCODE_TYPE_JUMP =>
                 address_in := (others => '0');
                 signal_has_error <= '0';
-            when OPCODE_TYPE_IO_MEMORY_TYPE =>
-                address_in := (others => '0');
-                signal_has_error <= '0';                
+-- TODO: pipe dream
+--            when OPCODE_TYPE_CHANGE_INTERNAL_INTEGER_BIT_SIZE =>
+--                address_in := (others => '0');
+--                signal_has_error <= '0';                
             when others =>
                 signal_has_error <= '1';
         end case;
@@ -331,7 +332,7 @@ architecture ControlUnit_Implementation of ControlUnit is
     signal signal_wake_up: std_logic := '0';
     signal signal_overflow_flag: std_logic := '0'; 
     signal signal_program_counter: CPU_ADDRESS_TYPE := (others => '0');
-    signal signal_io_memory_type: std_logic := '0';
+    -- signal signal_integer_bit_size: integer range 1 to MAX_INTEGER_BITS := MAX_INTEGER_BITS;
 begin
     MemoryReadInstance: MemoryRead port map
     (
