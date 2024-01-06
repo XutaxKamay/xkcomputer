@@ -13,6 +13,7 @@ package CentralProcessingUnit_Package is
     constant MAX_INTEGER_BITS : integer := 512;
 
     subtype ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) downto 0);
+    constant ALU_INTEGER_IN_TYPE_SIZE: integer := ALU_INTEGER_IN_TYPE'length;
 
     type ALU_INTEGER_OUT_TYPE is record
         -- Resulting integer --
@@ -126,30 +127,30 @@ package body CentralProcessingUnit_Package is
     begin
         case operation_type is
             when ALU_OPERATION_TYPE_ADD =>
-                temporary_resulting_integer := integer_in_left + integer_in_right;
+                temporary_resulting_integer := '0' & integer_in_left + integer_in_right;
 
             when ALU_OPERATION_TYPE_SUBTRACT =>
-                temporary_resulting_integer := integer_in_left - integer_in_right;
+                temporary_resulting_integer := '0' & integer_in_left - integer_in_right;
 
             when ALU_OPERATION_TYPE_DIVISION =>
                 if integer_in_right = 0 then
                     division_by_zero := true;
                 else
-                    temporary_resulting_integer := integer_in_left / integer_in_right;
+                    temporary_resulting_integer := '0' & integer_in_left / integer_in_right;
                 end if;
 
             when ALU_OPERATION_TYPE_MULTIPLY =>
-                temporary_resulting_integer := integer_in_left * integer_in_right;
+                temporary_resulting_integer := '0' & integer_in_left * integer_in_right;
 
             when ALU_OPERATION_TYPE_OR =>
-                temporary_resulting_integer := integer_in_left or integer_in_right;
+                temporary_resulting_integer := '0' & integer_in_left or integer_in_right;
 
             when ALU_OPERATION_TYPE_AND =>
-                temporary_resulting_integer := integer_in_left and integer_in_right;
+                temporary_resulting_integer := '0' & integer_in_left and integer_in_right;
         end case;
 
         -- Resize integer, even if it means to be an overflow --
-        integer_out.value := resize(temporary_resulting_integer, integer_out.value'length);
+        integer_out.value := resize(temporary_resulting_integer, ALU_INTEGER_IN_TYPE_SIZE);
 
         if temporary_resulting_integer > ALU_INTEGER_IN_TYPE'high
             or temporary_resulting_integer < ALU_INTEGER_IN_TYPE'low

@@ -26,7 +26,6 @@ architecture ControlUnit_Implementation of ControlUnit is
     type MEMORY_RECORD is record
         request: std_logic;
         address_in: CPU_ADDRESS_TYPE;
-        request_size: CPU_ADDRESS_TYPE;
         mode: MEMORY_MODE_TYPE;
         value: std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0);
     end record;
@@ -36,7 +35,6 @@ architecture ControlUnit_Implementation of ControlUnit is
         (
             request: inout std_logic;
             address_in: in CPU_ADDRESS_TYPE;
-            request_size: in CPU_ADDRESS_TYPE;
             mode: in MEMORY_MODE_TYPE;
             value: inout std_logic_vector((MEMORY_MAX_WORD_SIZE - 1) downto 0)
         );
@@ -51,12 +49,11 @@ architecture ControlUnit_Implementation of ControlUnit is
     begin
         signal_memory_record.mode <= MEMORY_MODE_READ;
         signal_memory_record.address_in <= address_in;
-        signal_memory_record.request_size <= to_unsigned(vector'length, CPU_ADDRESS_TYPE_SIZE);
         signal_memory_record.request <= '1';
         while (signal_memory_record.request /= '0') loop
         end loop;
         vector := signal_memory_record.value;
-        address_in := address_in + signal_memory_record.request_size;
+        address_in := address_in + vector'length;
     end procedure;
 
     procedure WriteMemory
@@ -68,12 +65,11 @@ architecture ControlUnit_Implementation of ControlUnit is
     begin
         signal_memory_record.mode <= MEMORY_MODE_WRITE;
         signal_memory_record.address_in <= address_in;
-        signal_memory_record.request_size <= to_unsigned(vector'length, CPU_ADDRESS_TYPE_SIZE);
         signal_memory_record.value <= vector;
         signal_memory_record.request <= '1';
         while (signal_memory_record.request /= '0') loop
         end loop;
-        address_in := address_in + signal_memory_record.request_size;
+        address_in := address_in + vector'length;
     end procedure;
 
     function DecodeInstruction
@@ -323,7 +319,6 @@ begin
     (
         request => signal_memory_record.request,
         address_in => signal_memory_record.address_in,
-        request_size => signal_memory_record.request_size,
         mode => signal_memory_record.mode,
         value => signal_memory_record.value
     );
