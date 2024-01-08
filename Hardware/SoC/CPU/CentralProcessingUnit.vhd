@@ -6,17 +6,15 @@ use work.CentralProcessingUnit_Package.all;
 entity CentralProcessingUnit is
     port
     (
-        reset: in std_logic;
-        has_error: out std_logic
+        reset: in BIT;
+        has_error: out BIT;
+        memory: inout MEMORY_BIT_VECTOR
     );
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-
-    -- Internal memory --
-    signal signal_internal_memory: MEMORY_BIT_VECTOR;
     signal signal_reset_request: std_logic;
-    signal signal_overflow_flag: std_logic := '0';
+    signal signal_overflow_flag: BIT := '0';
     signal signal_program_counter: CPU_ADDRESS_TYPE := (others => '0');
     signal signal_unit_state: UNIT_STATE;
     -- signal signal_integer_bit_size: integer range 1 to MAX_INTEGER_BITS := MAX_INTEGER_BITS;
@@ -56,7 +54,7 @@ begin
                 var_address_in := signal_program_counter;
 
                 -- Fetch instruction from memory --
-                ReadMemory(var_address_in, var_instruction_fetched, signal_internal_memory);
+                ReadMemory(var_address_in, var_instruction_fetched, memory);
 
                 signal_program_counter <= var_address_in;
 
@@ -71,7 +69,7 @@ begin
                 -- Execute instruction --
                 ExecuteInstruction(var_decoded_instruction,
                                    has_error,
-                                   signal_internal_memory,
+                                   memory,
                                    signal_overflow_flag);
 
                 -- Fetch again next instruction --

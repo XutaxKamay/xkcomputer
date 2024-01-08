@@ -11,8 +11,8 @@ package CentralProcessingUnit_Package is
     );
 
     constant MAX_INTEGER_BITS: integer := 512;
-    constant MAX_INTERNAL_MEMORY_IN_BITS: integer := 2**11;
-    subtype MEMORY_BIT_VECTOR is std_logic_vector((MAX_INTERNAL_MEMORY_IN_BITS - 1) downto 0);
+    constant MAX_MEMORY_IN_BITS: integer := 2**20;
+    subtype MEMORY_BIT_VECTOR is BIT_VECTOR((MAX_MEMORY_IN_BITS - 1) downto 0);
 
     subtype ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) downto 0);
     subtype MAX_ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) * 2 downto 0);
@@ -22,7 +22,7 @@ package CentralProcessingUnit_Package is
         -- Resulting integer --
         value: ALU_INTEGER_IN_TYPE;
         -- Overflow flag --
-        overflow : std_logic;
+        overflow : BIT;
     end record;
 
     type ALU_OPERATION_TYPE is
@@ -45,7 +45,7 @@ package CentralProcessingUnit_Package is
     subtype CPU_INTEGER_TYPE is ALU_INTEGER_IN_TYPE;
     constant CPU_INTEGER_TYPE_SIZE: integer := CPU_INTEGER_TYPE'length;
 
-    subtype OPCODE_TYPE is std_logic_vector(3 downto 0);
+    subtype OPCODE_TYPE is BIT_VECTOR(3 downto 0);
     constant OPCODE_TYPE_SIZE: integer := OPCODE_TYPE'length;
 
     -- Integer operations --
@@ -78,7 +78,7 @@ package CentralProcessingUnit_Package is
     -----------------------------------------------------
     -- constant OPCODE_TYPE_CHANGE_INTERNAL_INTEGER_BIT_SIZE: OPCODE_TYPE := "1111";
 
-    subtype OPERAND_TYPE is std_logic;
+    subtype OPERAND_TYPE is BIT;
     constant OPERAND_TYPE_SIZE: integer := 1;
 
     constant OPERAND_ADDRESS: OPERAND_TYPE := '0';
@@ -105,7 +105,7 @@ package CentralProcessingUnit_Package is
     constant INSTRUCTION_SIZE: integer := OPCODE_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + OPERAND_RIGHT_SIZE;
     constant MEMORY_MAX_WORD_SIZE: integer := INSTRUCTION_SIZE;
 
-    subtype INSTRUCTION_BIT_VECTOR is std_logic_vector((INSTRUCTION_SIZE - 1) downto 0);
+    subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
 
     -- General control unit states --
     type UNIT_STATE is
@@ -116,7 +116,6 @@ package CentralProcessingUnit_Package is
     );
 
     -- Function and procedures --
-
     function HandleALUOperations
     (
         operation_type: ALU_OPERATION_TYPE;
@@ -127,15 +126,15 @@ package CentralProcessingUnit_Package is
     procedure ReadMemory
     (
         address_in: inout CPU_ADDRESS_TYPE;
-        vector: out std_logic_vector;
-        signal signal_internal_memory: inout MEMORY_BIT_VECTOR
+        vector: out BIT_VECTOR;
+        signal signal_memory: inout MEMORY_BIT_VECTOR
     );
 
     procedure WriteMemory
     (
         address_in: inout CPU_ADDRESS_TYPE;
-        vector: in std_logic_vector;
-        signal signal_internal_memory: inout MEMORY_BIT_VECTOR
+        vector: in BIT_VECTOR;
+        signal signal_memory: inout MEMORY_BIT_VECTOR
     );
 
     function DecodeInstruction
@@ -148,17 +147,17 @@ package CentralProcessingUnit_Package is
         operation_type: in ALU_OPERATION_TYPE;
         decoded_instruction: in INSTRUCTION;
         address_in: inout CPU_ADDRESS_TYPE;
-        signal signal_has_error: inout std_logic;
-        signal signal_internal_memory: inout MEMORY_BIT_VECTOR;
-        signal signal_overflow_flag: inout std_logic
+        signal signal_has_error: inout BIT;
+        signal signal_memory: inout MEMORY_BIT_VECTOR;
+        signal signal_overflow_flag: inout BIT
     );
 
     procedure ExecuteInstruction
     (
         decoded_instruction: in INSTRUCTION;
-        signal signal_has_error: inout std_logic;
-        signal signal_internal_memory: inout MEMORY_BIT_VECTOR;
-        signal signal_overflow_flag: inout std_logic
+        signal signal_has_error: inout BIT;
+        signal signal_memory: inout MEMORY_BIT_VECTOR;
+        signal signal_overflow_flag: inout BIT
     );
 
 end CentralProcessingUnit_Package;
@@ -216,22 +215,22 @@ package body CentralProcessingUnit_Package is
     procedure ReadMemory
     (
         address_in: inout CPU_ADDRESS_TYPE;
-        vector: out std_logic_vector;
-        signal signal_internal_memory: inout MEMORY_BIT_VECTOR
+        vector: out BIT_VECTOR;
+        signal signal_memory: inout MEMORY_BIT_VECTOR
     ) is
     begin
-        vector := signal_internal_memory((to_integer(address_in) + vector'length - 1)
+        vector := signal_memory((to_integer(address_in) + vector'length - 1)
             downto to_integer(address_in));
     end procedure;
 
     procedure WriteMemory
     (
         address_in: inout CPU_ADDRESS_TYPE;
-        vector: in std_logic_vector;
-        signal signal_internal_memory: inout MEMORY_BIT_VECTOR
+        vector: in BIT_VECTOR;
+        signal signal_memory: inout MEMORY_BIT_VECTOR
     ) is
     begin
-        signal_internal_memory((to_integer(address_in) + vector'length - 1)
+        signal_memory((to_integer(address_in) + vector'length - 1)
             downto to_integer(address_in)) <= vector;
     end procedure;
 
@@ -248,15 +247,15 @@ package body CentralProcessingUnit_Package is
             (OPCODE_TYPE_SIZE - 1) + count_bits downto count_bits);
         count_bits := count_bits + OPCODE_TYPE_SIZE;
 
-        decoded_instruction.operand_left := CPU_INTEGER_TYPE(
-            instruction_in_bits((CPU_INTEGER_TYPE_SIZE - 1) + count_bits downto count_bits));
+        decoded_instruction.operand_left := CPU_INTEGER_TYPE(to_stdlogicvector(instruction_in_bits(
+            (CPU_INTEGER_TYPE_SIZE - 1) + count_bits downto count_bits)));
         count_bits := count_bits + CPU_INTEGER_TYPE_SIZE;
 
         decoded_instruction.operand_right.mode := instruction_in_bits(count_bits);
         count_bits := count_bits + OPERAND_TYPE_SIZE;
 
-        decoded_instruction.operand_right.value := CPU_INTEGER_TYPE(instruction_in_bits(
-            (CPU_INTEGER_TYPE_SIZE - 1) + count_bits downto count_bits));
+        decoded_instruction.operand_right.value := CPU_INTEGER_TYPE(to_stdlogicvector(instruction_in_bits(
+            (CPU_INTEGER_TYPE_SIZE - 1) + count_bits downto count_bits)));
         count_bits := count_bits + CPU_INTEGER_TYPE_SIZE;
 
         return decoded_instruction;
@@ -267,26 +266,26 @@ package body CentralProcessingUnit_Package is
         operation_type: in ALU_OPERATION_TYPE;
         decoded_instruction: in INSTRUCTION;
         address_in: inout CPU_ADDRESS_TYPE;
-        signal signal_has_error: inout std_logic;
-        signal signal_internal_memory: inout MEMORY_BIT_VECTOR;
-        signal signal_overflow_flag: inout std_logic
+        signal signal_has_error: inout BIT;
+        signal signal_memory: inout MEMORY_BIT_VECTOR;
+        signal signal_overflow_flag: inout BIT
     ) is
-        variable temporary_integer_bit_vec: std_logic_vector((CPU_INTEGER_TYPE_SIZE - 1) downto 0);
+        variable temporary_integer_bit_vec: BIT_VECTOR((CPU_INTEGER_TYPE_SIZE - 1) downto 0);
         variable temporary_integer: CPU_INTEGER_TYPE;
         variable temporary_alu_integer_out: ALU_INTEGER_OUT_TYPE;
     begin
         -- First operand is always an address for the ALU --
         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
-        ReadMemory(address_in, temporary_integer_bit_vec, signal_internal_memory);
-        temporary_integer := CPU_INTEGER_TYPE(temporary_integer_bit_vec);
+        ReadMemory(address_in, temporary_integer_bit_vec, signal_memory);
+        temporary_integer := CPU_INTEGER_TYPE(to_stdlogicvector(temporary_integer_bit_vec));
 
         case decoded_instruction.operand_right.mode is
             when OPERAND_ADDRESS =>
                 address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
-                ReadMemory(address_in, temporary_integer_bit_vec, signal_internal_memory);
+                ReadMemory(address_in, temporary_integer_bit_vec, signal_memory);
                 temporary_alu_integer_out := HandleALUOperations(operation_type,
                                                                  temporary_integer,
-                                                                 CPU_INTEGER_TYPE(temporary_integer_bit_vec));
+                                                                 CPU_INTEGER_TYPE(to_stdlogicvector(temporary_integer_bit_vec)));
 
                 signal_has_error <= '0';
 
@@ -310,12 +309,12 @@ package body CentralProcessingUnit_Package is
     procedure ExecuteInstruction
     (
         decoded_instruction: in INSTRUCTION;
-        signal signal_has_error: inout std_logic;
-        signal signal_internal_memory: inout MEMORY_BIT_VECTOR;
-        signal signal_overflow_flag: inout std_logic
+        signal signal_has_error: inout BIT;
+        signal signal_memory: inout MEMORY_BIT_VECTOR;
+        signal signal_overflow_flag: inout BIT
     ) is
         variable address_in: CPU_ADDRESS_TYPE;
-        variable temporary_integer_bit_vec: std_logic_vector((CPU_INTEGER_TYPE_SIZE - 1) downto 0);
+        variable temporary_integer_bit_vec: BIT_VECTOR((CPU_INTEGER_TYPE_SIZE - 1) downto 0);
     begin
         case decoded_instruction.opcode_type is
             when OPCODE_TYPE_SET =>
@@ -328,19 +327,19 @@ package body CentralProcessingUnit_Package is
                     when OPERAND_ADDRESS =>
                         -- First get the address of the right operand and read the address --
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
-                        ReadMemory(address_in, temporary_integer_bit_vec, signal_internal_memory);
+                        ReadMemory(address_in, temporary_integer_bit_vec, signal_memory);
 
                         -- Write the result --
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
-                        WriteMemory(address_in, temporary_integer_bit_vec, signal_internal_memory);
+                        WriteMemory(address_in, temporary_integer_bit_vec, signal_memory);
 
                         signal_has_error <= '0';
         
                     when OPERAND_INTEGER =>
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
                         WriteMemory(address_in,
-                                    std_logic_vector(resize(decoded_instruction.operand_right.value,
-                                                            CPU_INTEGER_TYPE_SIZE)), signal_internal_memory);
+                                    to_bitvector(std_logic_vector(resize(decoded_instruction.operand_right.value,
+                                                            CPU_INTEGER_TYPE_SIZE))), signal_memory);
 
                         signal_has_error <= '0';
         
@@ -354,7 +353,7 @@ package body CentralProcessingUnit_Package is
                                  decoded_instruction,
                                  address_in,
                                  signal_has_error,
-                                 signal_internal_memory,
+                                 signal_memory,
                                  signal_overflow_flag);
 
             when OPCODE_TYPE_AND =>
@@ -362,7 +361,7 @@ package body CentralProcessingUnit_Package is
                                  decoded_instruction,
                                  address_in,
                                  signal_has_error,
-                                 signal_internal_memory,
+                                 signal_memory,
                                  signal_overflow_flag);
 
             when OPCODE_TYPE_NOT =>
@@ -377,22 +376,22 @@ package body CentralProcessingUnit_Package is
                     when OPERAND_ADDRESS =>
                         -- First get the address of the right operand and read the address --
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_right.value, CPU_ADDRESS_TYPE_SIZE));
-                        ReadMemory(address_in, temporary_integer_bit_vec, signal_internal_memory);
+                        ReadMemory(address_in, temporary_integer_bit_vec, signal_memory);
 
                         -- Apply not operator --
-                        temporary_integer_bit_vec := not temporary_integer_bit_vec;
+                        temporary_integer_bit_vec := to_bit_vector(not to_stdlogicvector(temporary_integer_bit_vec));
 
                         -- Write the result --
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
-                        WriteMemory(address_in, temporary_integer_bit_vec, signal_internal_memory);
+                        WriteMemory(address_in, temporary_integer_bit_vec, signal_memory);
 
                         signal_has_error <= '0';
         
                     when OPERAND_INTEGER =>
                         address_in := CPU_ADDRESS_TYPE(resize(decoded_instruction.operand_left, CPU_ADDRESS_TYPE_SIZE));
                         WriteMemory(address_in,
-                                    std_logic_vector(resize(not decoded_instruction.operand_right.value,
-                                                            CPU_INTEGER_TYPE_SIZE)), signal_internal_memory);
+                                    to_bitvector(std_logic_vector((resize(not decoded_instruction.operand_right.value,
+                                                            CPU_INTEGER_TYPE_SIZE)))), signal_memory);
                         signal_has_error <= '0';
         
                     -- Others states, shouldn't happen, but who knows --
@@ -405,7 +404,7 @@ package body CentralProcessingUnit_Package is
                                  decoded_instruction,
                                  address_in,
                                  signal_has_error,
-                                 signal_internal_memory,
+                                 signal_memory,
                                  signal_overflow_flag);
 
             when OPCODE_TYPE_SUBSTRACT =>
@@ -413,7 +412,7 @@ package body CentralProcessingUnit_Package is
                                  decoded_instruction,
                                  address_in,
                                  signal_has_error,
-                                 signal_internal_memory,
+                                 signal_memory,
                                  signal_overflow_flag);
 
             when OPCODE_TYPE_DIVISION =>
@@ -421,7 +420,7 @@ package body CentralProcessingUnit_Package is
                                  decoded_instruction,
                                  address_in,
                                  signal_has_error,
-                                 signal_internal_memory,
+                                 signal_memory,
                                  signal_overflow_flag);
 
             when OPCODE_TYPE_MULTIPLY =>
@@ -429,7 +428,7 @@ package body CentralProcessingUnit_Package is
                                  decoded_instruction,
                                  address_in,
                                  signal_has_error,
-                                 signal_internal_memory,
+                                 signal_memory,
                                  signal_overflow_flag);
 
             when OPCODE_TYPE_READ =>
