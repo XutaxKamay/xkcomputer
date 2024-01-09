@@ -7,18 +7,21 @@ entity CentralProcessingUnit is
     port
     (
         reset: in BIT;
-        has_error: out BIT;
-        memory: inout MEMORY_BIT_VECTOR
+        commit_read_memory: inout BIT;
+        commit_write_memory: inout BIT;
+        memory_address: inout CPU_ADDRESS_TYPE;
+        memory_size: inout CPU_ADDRESS_TYPE;
+        memory_data: inout MEMORY_DATA;
+        memory_mode: inout MEMORY_MODE_TYPE
     );
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
     signal signal_reset_request: std_logic;
-    signal signal_overflow_flag: BIT := '0';
-    signal signal_program_counter: CPU_ADDRESS_TYPE := (others => '0');
-    signal signal_unit_state: UNIT_STATE;
-    -- signal signal_integer_bit_size: integer range 1 to MAX_INTEGER_BITS := MAX_INTEGER_BITS;
-
+    signal signal_unit_state: UNIT_STATE := UNIT_STATE_NOT_RUNNING;
+    signal signal_registers: REGISTERS;
+    signal signal_has_asked_instruction: boolean := false;
+    signal signal_commit_memory: COMMIT_MEMORY_RECORD;
 begin
     -- Handle control unit reset --
     process (reset)
@@ -32,48 +35,29 @@ begin
 
     -- Handle control unit states --
     process (signal_reset_request, signal_unit_state)
-        variable var_decoded_instruction: INSTRUCTION;
-        variable var_instruction_fetched: INSTRUCTION_BIT_VECTOR;
-        variable var_address_in: CPU_ADDRESS_TYPE;
     begin
         -- Reset has been raised --
         if signal_reset_request = '1' then
-            -- CPU Reset --
-            signal_program_counter <= (others => '0');
+            -- Reset CPU --
+            signal_registers.special.program_counter <= (others => '0');
             -- Will trigger again a new process execution --
-            signal_unit_state <= UNIT_STATE_NOT_RUNNING;
+            signal_unit_state <= UNIT_STATE_BEGIN;
         end if;
 
         case signal_unit_state is
-            -- Always start by fetching --
-            when UNIT_STATE_NOT_RUNNING =>
-                signal_unit_state <= UNIT_STATE_FETCHING_INSTRUCTION;
-
-            -- Fetch the instruction first --
-            when UNIT_STATE_FETCHING_INSTRUCTION =>
-                var_address_in := signal_program_counter;
-
-                -- Fetch instruction from memory --
-                ReadMemory(var_address_in, var_instruction_fetched, memory);
-
-                signal_program_counter <= var_address_in;
-
-                -- Decode instruction --
-                var_decoded_instruction := DecodeInstruction(var_instruction_fetched);
-
-                -- And then signal to execute instruction --
-                signal_unit_state <= UNIT_STATE_EXECUTING_INSTRUCTION;
-
-            -- Then we execute the instruction --
-            when UNIT_STATE_EXECUTING_INSTRUCTION =>
-                -- Execute instruction --
-                ExecuteInstruction(var_decoded_instruction,
-                                   has_error,
-                                   memory,
-                                   signal_overflow_flag);
-
-                -- Fetch again next instruction --
-                signal_unit_state <= UNIT_STATE_FETCHING_INSTRUCTION;
+            when UNIT_STATE_BEGIN =>
+                signal_unit_state <= UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE;
+            when UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE =>
+                FetchAndDecodeAndExecuteInstruction(commit_read_memory,
+                                                    memory_address,
+                                                    memory_size,
+                                                    memory_data,
+                                                    memory_mode,
+                                                    signal_registers.special.program_counter,
+                                                    signal_has_asked_instruction,
+                                                    signal_unit_state);
+            when UNIT_STATE_COMMIT_MEMORY =>
+                
         end case;
     end process;
 
