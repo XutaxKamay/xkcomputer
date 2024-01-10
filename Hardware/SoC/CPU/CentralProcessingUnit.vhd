@@ -53,8 +53,10 @@ begin
             -- Should never happen --
             when UNIT_STATE_NOT_RUNNING =>
                 signal_unit_state <= UNIT_STATE_BEGIN;
+
             when UNIT_STATE_BEGIN =>
                 signal_unit_state <= UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE;
+
             when UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE =>
                 FetchAndDecodeAndExecuteInstruction(commit_read_memory,
                                                     commit_write_memory,
@@ -66,6 +68,7 @@ begin
                                                     signal_has_asked_instruction,
                                                     signal_unit_state,
                                                     signal_memory_to_commmit);
+
             when UNIT_STATE_COMMITING_MEMORY =>
                 CheckCommitMemory(signal_memory_to_commmit,
                                   signal_registers.general,

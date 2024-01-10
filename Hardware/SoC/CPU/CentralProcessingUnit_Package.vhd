@@ -10,7 +10,7 @@ package CentralProcessingUnit_Package is
         MEMORY_MODE_WRITE
     );
 
-    constant MAX_MEMORY_BITS: integer := 2**11;
+    constant MAX_MEMORY_BITS: integer := 2**10;
     subtype MEMORY_BIT_VECTOR is BIT_VECTOR((MAX_MEMORY_BITS - 1) downto 0);
 
     constant MAX_INTEGER_BITS: integer := 2**9;
@@ -45,6 +45,7 @@ package CentralProcessingUnit_Package is
 
     ----------------------------------------
     -- I don't think we're going to reach --
+    -- 2^512 bits of bit address space    --
     ----------------------------------------
     subtype CPU_ADDRESS_TYPE is ALU_INTEGER_IN_TYPE;
     constant CPU_ADDRESS_TYPE_SIZE: integer := CPU_ADDRESS_TYPE'length;
@@ -329,6 +330,40 @@ package body CentralProcessingUnit_Package is
         signal memory_to_commit: inout COMMIT_MEMORY_RECORD
     ) is
     begin
+        should_commit_memory := true;
+        memory_to_commit.mode <= mode;
+
+        case decoded_instruction.operand_right.mode is
+            when OPERAND_REGISTER =>
+                case mode is
+                    when MEMORY_MODE_READ =>
+                        memory_to_commit.address
+                            <= registers.general(to_integer(decoded_instruction.operand_right.register_index));
+                        memory_to_commit.register_index
+                            <= decoded_instruction.operand_left.register_index;
+
+                    when MEMORY_MODE_WRITE =>
+                        memory_to_commit.address
+                            <= registers.general(to_integer(decoded_instruction.operand_right.register_index));
+                        memory_to_commit.value
+                            <= registers.general(to_integer(decoded_instruction.operand_left.register_index));
+                end case;
+
+            when OPERAND_INTEGER =>
+                case mode is
+                    when MEMORY_MODE_READ =>
+                        memory_to_commit.address
+                            <= decoded_instruction.operand_right.integer_value;
+                        memory_to_commit.register_index
+                            <= decoded_instruction.operand_left.register_index;
+
+                    when MEMORY_MODE_WRITE =>
+                        memory_to_commit.address
+                            <= decoded_instruction.operand_right.integer_value;
+                        memory_to_commit.value
+                            <= registers.general(to_integer(decoded_instruction.operand_left.register_index));
+                end case;
+        end case;
     end;
 
     procedure AskInstruction
@@ -341,6 +376,7 @@ package body CentralProcessingUnit_Package is
     ) is
     begin
         memory_address <= program_counter;
+        -- Incrementing program counter here --
         program_counter <= program_counter + INSTRUCTION_SIZE;
         memory_size <= to_signed(INSTRUCTION_SIZE, CPU_ADDRESS_TYPE_SIZE);
         memory_mode <= MEMORY_MODE_READ;
@@ -396,56 +432,86 @@ package body CentralProcessingUnit_Package is
             when OPCODE_TYPE_SET =>
                 operation_type := ALU_OPERATION_TYPE_SET;
                 is_alu_operation_type := true;
+
             when OPCODE_TYPE_OR =>
                 operation_type := ALU_OPERATION_TYPE_OR;
                 is_alu_operation_type := true;
+
             when OPCODE_TYPE_AND =>
                 operation_type := ALU_OPERATION_TYPE_AND;
                 is_alu_operation_type := true;
+
             when OPCODE_TYPE_NOT =>
                 operation_type := ALU_OPERATION_TYPE_NOT;
                 is_alu_operation_type := true;
+
             when OPCODE_TYPE_ADD =>
                 operation_type := ALU_OPERATION_TYPE_ADD;
                 is_alu_operation_type := true;
+
             when OPCODE_TYPE_SUBSTRACT =>
                 operation_type := ALU_OPERATION_TYPE_SUBTRACT;
                 is_alu_operation_type := true;
+
             when OPCODE_TYPE_DIVISION =>
                 operation_type := ALU_OPERATION_TYPE_DIVISION;
                 is_alu_operation_type := true;
+
             when OPCODE_TYPE_MULTIPLY =>
                 operation_type := ALU_OPERATION_TYPE_MULTIPLY;
                 is_alu_operation_type := true;
+
             when OPCODE_TYPE_READ =>
                 HandleMemoryOperations(MEMORY_MODE_READ,
                                        decoded_instruction,
                                        registers,
                                        should_commit_memory,
                                        memory_to_commit);
+
             when OPCODE_TYPE_WRITE =>
                 HandleMemoryOperations(MEMORY_MODE_WRITE,
                                        decoded_instruction,
                                        registers,
                                        should_commit_memory,
                                        memory_to_commit);
+
             when OPCODE_TYPE_IS_BIGGER =>
                 operation_type := ALU_OPERATION_TYPE_BIGGER;
                 is_alu_operation_type := true;
                 is_alu_operation_condition_flag_type := true;
+
             when OPCODE_TYPE_IS_LOWER =>
                 operation_type := ALU_OPERATION_TYPE_LOWER;
                 is_alu_operation_type := true;
                 is_alu_operation_condition_flag_type := true;
+
             when OPCODE_TYPE_IS_EQUAL =>
                 operation_type := ALU_OPERATION_TYPE_EQUAL;
                 is_alu_operation_type := true;
                 is_alu_operation_condition_flag_type := true;
+
             when OPCODE_TYPE_HAD_INTEGER_OVERFLOW =>
                 -- Assign overflow flag to condition flag so that he can use BRANCH instruction --
                 registers.special.condition_flag <= registers.special.overflow_flag;
+
+            ----------------------------------------------------
+            -- In case of a simple jump, take the left register
+            -- TODO: figure out what to do with the right one
             when OPCODE_TYPE_JUMP =>
+                registers.special.program_counter <= registers.general(
+                    to_integer(decoded_instruction.operand_left.register_index));
+
+            -----------------------------------------------------------------
+            -- Take the first register for jumping, otherwise the second one
+            -- TODO: figure out what to do with the right integer.
             when OPCODE_TYPE_BRANCH =>
+                if registers.special.condition_flag then
+                    registers.special.program_counter <= registers.general(
+                        to_integer(decoded_instruction.operand_left.register_index));
+                else
+                    registers.special.program_counter <= registers.general(
+                        to_integer(decoded_instruction.operand_right.register_index));
+                end if;
         end case;
 
         if is_alu_operation_type then
@@ -494,7 +560,7 @@ package body CentralProcessingUnit_Package is
 
         variable var_decoded_instruction: INSTRUCTION;
         variable var_instruction_fetched: INSTRUCTION_BIT_VECTOR;
-        variable should_commit_memory: boolean;
+        variable should_commit_memory: boolean := false;
 
     begin
         if not has_asked_instruction then
@@ -506,13 +572,15 @@ package body CentralProcessingUnit_Package is
                            memory_size,
                            memory_mode,
                            registers.special.program_counter);
+            -- Shouldn't be needed since commit_read_memory is inside the sensitive list, but just in case --
+            signal_unit_state <= UNIT_STATE_BEGIN;
         else
             -- Has instruction has been fetched ? --
             if not commit_read_memory then
                 has_asked_instruction <= false;
 
                 -- Get instruction data --
-                var_instruction_fetched := memory_data((INSTRUCTION_BIT_VECTOR'length - 1) downto 0);
+                var_instruction_fetched := memory_data((INSTRUCTION_SIZE - 1) downto 0);
 
                 -- Decode instruction --
                 var_decoded_instruction := DecodeInstruction(var_instruction_fetched);
@@ -530,7 +598,8 @@ package body CentralProcessingUnit_Package is
                     memory_address <= memory_to_commit.address;
 
                     if memory_mode = MEMORY_MODE_WRITE then
-                        memory_data <= to_bitvector(std_logic_vector(memory_to_commit.value));
+                        memory_data((CPU_INTEGER_TYPE_SIZE - 1) downto 0) 
+                            <= to_bitvector(std_logic_vector(memory_to_commit.value));
                     end if;
 
                     -- Finally, change state as soon as possible to wait for commiting memory --
@@ -560,6 +629,7 @@ package body CentralProcessingUnit_Package is
                 -- If it's read, it's always a register to set --
                 when MEMORY_MODE_READ =>
                     commit_read_memory <= true;
+
                 -- If it's write, it's always an address to write to --
                 when MEMORY_MODE_WRITE =>
                     commit_write_memory <= true;
