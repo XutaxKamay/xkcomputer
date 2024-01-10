@@ -19,7 +19,7 @@ end CentralProcessingUnit;
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
     signal signal_reset_request: boolean;
     signal signal_unit_state: UNIT_STATE := UNIT_STATE_NOT_RUNNING;
-    signal signal_registers: REGISTERS;
+    signal signal_registers: REGISTERS_RECORD;
     signal signal_has_asked_instruction: boolean := false;
     signal signal_memory_to_commmit: COMMIT_MEMORY_RECORD;
 begin
@@ -62,7 +62,7 @@ begin
                                                     memory_size,
                                                     memory_data,
                                                     memory_mode,
-                                                    signal_registers.special.program_counter,
+                                                    signal_registers,
                                                     signal_has_asked_instruction,
                                                     signal_unit_state,
                                                     signal_memory_to_commmit);
