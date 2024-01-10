@@ -6,38 +6,43 @@ use work.CentralProcessingUnit_Package.all;
 entity CentralProcessingUnit is
     port
     (
-        reset: in BIT;
-        commit_read_memory: inout BIT;
-        commit_write_memory: inout BIT;
+        reset: in boolean;
+        commit_read_memory: inout boolean;
+        commit_write_memory: inout boolean;
         memory_address: inout CPU_ADDRESS_TYPE;
         memory_size: inout CPU_ADDRESS_TYPE;
-        memory_data: inout MEMORY_DATA;
+        memory_data: inout MEMORY_BIT_VECTOR;
         memory_mode: inout MEMORY_MODE_TYPE
     );
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-    signal signal_reset_request: std_logic;
+    signal signal_reset_request: boolean;
     signal signal_unit_state: UNIT_STATE := UNIT_STATE_NOT_RUNNING;
     signal signal_registers: REGISTERS;
     signal signal_has_asked_instruction: boolean := false;
-    signal signal_commit_memory: COMMIT_MEMORY_RECORD;
+    signal signal_memory_to_commmit: COMMIT_MEMORY_RECORD;
 begin
     -- Handle control unit reset --
     process (reset)
     begin
-        if reset = '1' then
-            signal_reset_request <= '1';
+        if reset then
+            signal_reset_request <= true;
         else
-            signal_reset_request <= '0';
+            signal_reset_request <= false;
         end if;
     end process;
 
-    -- Handle control unit states --
-    process (signal_reset_request, signal_unit_state)
+    ----------------------------------------------------------------------------
+    -- Handle control unit states
+    -- commit_read_memory should trigger a new execution also when it is zero,
+    -- in oreder to fetch a new instruction
+    -- both commit_read_memory/commit_write_memory
+    -- will be used too for commit_memory unit state.
+    process (signal_reset_request, signal_unit_state, commit_read_memory, commit_write_memory)
     begin
         -- Reset has been raised --
-        if signal_reset_request = '1' then
+        if signal_reset_request then
             -- Reset CPU --
             signal_registers.special.program_counter <= (others => '0');
             -- Will trigger again a new process execution --
@@ -45,19 +50,29 @@ begin
         end if;
 
         case signal_unit_state is
+            -- Should never happen --
+            when UNIT_STATE_NOT_RUNNING =>
+                signal_unit_state <= UNIT_STATE_BEGIN;
             when UNIT_STATE_BEGIN =>
                 signal_unit_state <= UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE;
             when UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE =>
                 FetchAndDecodeAndExecuteInstruction(commit_read_memory,
+                                                    commit_write_memory,
                                                     memory_address,
                                                     memory_size,
                                                     memory_data,
                                                     memory_mode,
                                                     signal_registers.special.program_counter,
                                                     signal_has_asked_instruction,
-                                                    signal_unit_state);
-            when UNIT_STATE_COMMIT_MEMORY =>
-                
+                                                    signal_unit_state,
+                                                    signal_memory_to_commmit);
+            when UNIT_STATE_COMMITING_MEMORY =>
+                CheckCommitMemory(signal_memory_to_commmit,
+                                  signal_registers.general,
+                                  commit_read_memory,
+                                  commit_write_memory,
+                                  memory_data,
+                                  signal_unit_state);
         end case;
     end process;
 
