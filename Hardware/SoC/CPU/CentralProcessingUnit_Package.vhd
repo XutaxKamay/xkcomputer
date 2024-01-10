@@ -24,6 +24,7 @@ package CentralProcessingUnit_Package is
         value: ALU_INTEGER_IN_TYPE;
         -- Overflow flag --
         overflow: boolean;
+        condition: boolean;
     end record;
 
     type ALU_OPERATION_TYPE is
@@ -36,7 +37,10 @@ package CentralProcessingUnit_Package is
         ALU_OPERATION_TYPE_MULTIPLY,
         -- Operation with only one integer --
         ALU_OPERATION_TYPE_SET,
-        ALU_OPERATION_TYPE_NOT
+        ALU_OPERATION_TYPE_NOT,
+        ALU_OPERATION_TYPE_BIGGER,
+        ALU_OPERATION_TYPE_LOWER,
+        ALU_OPERATION_TYPE_EQUAL
     );
 
     ----------------------------------------
@@ -189,6 +193,15 @@ package CentralProcessingUnit_Package is
         integer_in_right: ALU_INTEGER_IN_TYPE
     ) return ALU_INTEGER_OUT_TYPE;
 
+    procedure HandleMemoryOperations
+    (
+        mode: in MEMORY_MODE_TYPE;
+        decoded_instruction: in INSTRUCTION;
+        signal registers: inout REGISTERS_RECORD;
+        should_commit_memory: inout boolean;
+        signal memory_to_commit: inout COMMIT_MEMORY_RECORD
+    );
+
     procedure AskInstruction
     (
         signal commit_read_memory: inout boolean;
@@ -248,6 +261,7 @@ package body CentralProcessingUnit_Package is
     -- Store integer result, make it big enough for multiplication --
     variable temporary_resulting_integer: MAX_ALU_INTEGER_IN_TYPE;
     variable division_by_zero: boolean := false;
+    variable condition: boolean := false;
     variable integer_out: ALU_INTEGER_OUT_TYPE;
 
     begin
@@ -279,6 +293,15 @@ package body CentralProcessingUnit_Package is
 
             when ALU_OPERATION_TYPE_NOT =>
                 temporary_resulting_integer := resize(not integer_in_left, MAX_ALU_INTEGER_IN_TYPE'length);
+
+            when ALU_OPERATION_TYPE_BIGGER =>
+                condition := integer_in_left > integer_in_right;
+
+            when ALU_OPERATION_TYPE_LOWER =>
+                condition := integer_in_left < integer_in_right;
+
+            when ALU_OPERATION_TYPE_EQUAL =>
+                condition := integer_in_left = integer_in_right;
         end case;
 
         -- Resize integer, even if it means to be an overflow --
@@ -292,8 +315,21 @@ package body CentralProcessingUnit_Package is
             integer_out.overflow := false;
         end if;
 
+        integer_out.condition := condition;
+
         return integer_out;
     end HandleALUOperations;
+
+    procedure HandleMemoryOperations
+    (
+        mode: in MEMORY_MODE_TYPE;
+        decoded_instruction: in INSTRUCTION;
+        signal registers: inout REGISTERS_RECORD;
+        should_commit_memory: inout boolean;
+        signal memory_to_commit: inout COMMIT_MEMORY_RECORD
+    ) is
+    begin
+    end;
 
     procedure AskInstruction
     (
@@ -353,6 +389,7 @@ package body CentralProcessingUnit_Package is
         variable alu_integer_out: ALU_INTEGER_OUT_TYPE;
         variable operation_type: ALU_OPERATION_TYPE;
         variable is_alu_operation_type: boolean := false;
+        variable is_alu_operation_condition_flag_type: boolean := false;
 
     begin
         case decoded_instruction.opcode is
@@ -381,11 +418,32 @@ package body CentralProcessingUnit_Package is
                 operation_type := ALU_OPERATION_TYPE_MULTIPLY;
                 is_alu_operation_type := true;
             when OPCODE_TYPE_READ =>
+                HandleMemoryOperations(MEMORY_MODE_READ,
+                                       decoded_instruction,
+                                       registers,
+                                       should_commit_memory,
+                                       memory_to_commit);
             when OPCODE_TYPE_WRITE =>
+                HandleMemoryOperations(MEMORY_MODE_WRITE,
+                                       decoded_instruction,
+                                       registers,
+                                       should_commit_memory,
+                                       memory_to_commit);
             when OPCODE_TYPE_IS_BIGGER =>
-            when OPCODE_TYPE_IS_LOWER => 
+                operation_type := ALU_OPERATION_TYPE_BIGGER;
+                is_alu_operation_type := true;
+                is_alu_operation_condition_flag_type := true;
+            when OPCODE_TYPE_IS_LOWER =>
+                operation_type := ALU_OPERATION_TYPE_LOWER;
+                is_alu_operation_type := true;
+                is_alu_operation_condition_flag_type := true;
             when OPCODE_TYPE_IS_EQUAL =>
+                operation_type := ALU_OPERATION_TYPE_EQUAL;
+                is_alu_operation_type := true;
+                is_alu_operation_condition_flag_type := true;
             when OPCODE_TYPE_HAD_INTEGER_OVERFLOW =>
+                -- Assign overflow flag to condition flag so that he can use BRANCH instruction --
+                registers.special.condition_flag <= registers.special.overflow_flag;
             when OPCODE_TYPE_JUMP =>
             when OPCODE_TYPE_BRANCH =>
         end case;
@@ -408,7 +466,14 @@ package body CentralProcessingUnit_Package is
                                                            ALU_INTEGER_IN_TYPE(decoded_instruction.operand_right.integer_value));
                     registers.general(to_integer(decoded_instruction.operand_left.register_index)) <= CPU_INTEGER_TYPE(alu_integer_out.value);
             end case;
+
+            -- Assign overflow flag --
             registers.special.overflow_flag <= alu_integer_out.overflow;
+
+            -- Assign condition flag only when needed --
+            if is_alu_operation_condition_flag_type then
+                registers.special.condition_flag <= alu_integer_out.condition;
+            end if;
         end if;
 
     end ExecuteInstruction;
