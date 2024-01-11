@@ -10,10 +10,10 @@ package CentralProcessingUnit_Package is
         MEMORY_MODE_WRITE
     );
 
-    constant MAX_INTEGER_BITS: integer := 2**9;
+    constant MAX_INTEGER_BITS: integer := 2**8;
 
     subtype ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) downto 0);
-    subtype MAX_ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) * 2 downto 0);
+    subtype MAX_ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS * 2 - 1) downto 0);
     constant ALU_INTEGER_IN_TYPE_SIZE: integer := ALU_INTEGER_IN_TYPE'length;
 
     type ALU_INTEGER_OUT_TYPE is record
