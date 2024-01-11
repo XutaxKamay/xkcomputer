@@ -35,17 +35,16 @@ begin
 
     ----------------------------------------------------------------------------
     -- Handle control unit states
-    -- commit_read_memory should trigger a new execution also when it is zero,
-    -- in order to fetch a new instruction
-    -- both commit_read_memory/commit_write_memory
-    -- will be used too for commit_memory unit state.
-    process (signal_reset_request, signal_unit_state, commit_read_memory, commit_write_memory)
+    -- Feedback loop based on signal_unit_state FSM
+    process (signal_reset_request, signal_unit_state)
     begin
         -- Reset has been raised --
         if signal_reset_request then
             -- Reset CPU --
             signal_registers.special.program_counter <= (others => '0');
             signal_memory_to_commmit.has_commit <= false;
+            commit_read_memory <= false;
+            commit_write_memory <= false;
             -- Will trigger again a new process execution --
             signal_unit_state <= UNIT_STATE_BEGIN;
         end if;
@@ -55,6 +54,7 @@ begin
             when UNIT_STATE_NOT_RUNNING =>
                 signal_unit_state <= UNIT_STATE_BEGIN;
 
+            -- This is an extra step, but maybe not needed, this in case we need extra logic --
             when UNIT_STATE_BEGIN =>
                 signal_unit_state <= UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE;
 

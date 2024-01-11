@@ -563,16 +563,17 @@ package body CentralProcessingUnit_Package is
         variable should_commit_memory: boolean := false;
 
     begin
+        -- Do not ask the instruction all the time, check if we have asked before --
         if not has_asked_instruction then
             has_asked_instruction <= true;
 
-            -- AskInstruction will trigger new execution --
+            -- Ask a new instruction from memory --
             AskInstruction(commit_read_memory,
                            memory_address,
                            memory_size,
                            memory_mode,
                            registers.special.program_counter);
-            -- Shouldn't be needed since commit_read_memory is inside the sensitive list, but just in case --
+            -- Then wait for memory commiting --
             signal_unit_state <= UNIT_STATE_BEGIN;
         else
             -- Has instruction has been fetched ? --
@@ -605,7 +606,7 @@ package body CentralProcessingUnit_Package is
                     -- Finally, change state as soon as possible to wait for commiting memory --
                     signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
                 else
-                    -- Otherwise, begin another fetch --
+                    -- Otherwise, begin another instruction fetch --
                     signal_unit_state <= UNIT_STATE_BEGIN;
                 end if;
             end if;
