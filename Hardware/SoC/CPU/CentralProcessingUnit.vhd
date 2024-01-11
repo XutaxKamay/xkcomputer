@@ -41,8 +41,13 @@ begin
         -- Reset has been raised --
         if signal_reset_request then
             -- Reset CPU --
-            signal_registers.special.program_counter <= (others => '0');
+            signal_registers <= (general => (others => (others => '0')),
+                                 special => (overflow_flag => false, 
+                                             condition_flag => false,
+                                             program_counter => (others => '0'))); 
+            -- In case we interrupted while being in commiting state --
             signal_memory_to_commmit.has_commit <= false;
+            -- Do not wait for memory to set them to false --
             commit_read_memory <= false;
             commit_write_memory <= false;
             -- Will trigger again a new process execution --
