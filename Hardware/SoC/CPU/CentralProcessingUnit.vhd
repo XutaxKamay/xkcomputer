@@ -11,7 +11,7 @@ entity CentralProcessingUnit is
         commit_write_memory: inout boolean;
         memory_address: inout CPU_ADDRESS_TYPE;
         memory_data: inout MEMORY_BIT_VECTOR;
-        memory_size: out CPU_ADDRESS_TYPE;
+        memory_size: out MEMORY_INTEGER_SIZE_TYPE;
         memory_mode: out MEMORY_MODE_TYPE
     );
 end CentralProcessingUnit;
