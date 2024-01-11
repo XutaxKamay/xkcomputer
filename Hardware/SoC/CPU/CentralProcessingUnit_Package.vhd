@@ -10,9 +10,6 @@ package CentralProcessingUnit_Package is
         MEMORY_MODE_WRITE
     );
 
-    constant MAX_MEMORY_BITS: integer := 2**10;
-    subtype MEMORY_BIT_VECTOR is BIT_VECTOR((MAX_MEMORY_BITS - 1) downto 0);
-
     constant MAX_INTEGER_BITS: integer := 2**9;
 
     subtype ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) downto 0);
@@ -140,6 +137,9 @@ package CentralProcessingUnit_Package is
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_TYPE_SIZE);
 
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
+
+    constant MAX_MEMORY_BITS: integer := INSTRUCTION_SIZE;
+    subtype MEMORY_BIT_VECTOR is BIT_VECTOR((MAX_MEMORY_BITS - 1) downto 0);
 
     -------------------------------------------------------------------------------------------------
     -- 1) ask & fetch instruction
