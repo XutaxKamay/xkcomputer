@@ -36,7 +36,7 @@ begin
     ----------------------------------------------------------------------------
     -- Handle control unit states
     -- commit_read_memory should trigger a new execution also when it is zero,
-    -- in oreder to fetch a new instruction
+    -- in order to fetch a new instruction
     -- both commit_read_memory/commit_write_memory
     -- will be used too for commit_memory unit state.
     process (signal_reset_request, signal_unit_state, commit_read_memory, commit_write_memory)
@@ -45,6 +45,7 @@ begin
         if signal_reset_request then
             -- Reset CPU --
             signal_registers.special.program_counter <= (others => '0');
+            signal_memory_to_commmit.has_commit <= false;
             -- Will trigger again a new process execution --
             signal_unit_state <= UNIT_STATE_BEGIN;
         end if;
