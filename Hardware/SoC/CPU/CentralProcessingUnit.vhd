@@ -9,21 +9,18 @@ entity CentralProcessingUnit is
         reset: in boolean;
         commit_read_memory: inout boolean;
         commit_write_memory: inout boolean;
-        memory_size_read: out MEMORY_INTEGER_SIZE_TYPE;
-        memory_size_write: out MEMORY_INTEGER_SIZE_TYPE;
         memory_address_read: out CPU_ADDRESS_TYPE;
         memory_address_write: out CPU_ADDRESS_TYPE;
-        memory_data_read: in MEMORY_BIT_VECTOR;
-        memory_data_write: out MEMORY_BIT_VECTOR
+        memory_word_read: in MEMORY_WORD_TYPE;
+        memory_word_write: out MEMORY_WORD_TYPE
     );
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
+
     signal signal_reset_request: boolean;
-    signal signal_unit_state: UNIT_STATE := UNIT_STATE_NOT_RUNNING;
-    signal signal_registers: REGISTERS_RECORD;
-    signal signal_has_asked_instruction: boolean := false;
-    signal signal_memory_to_commmit: COMMIT_MEMORY_RECORD;
+    signal signal_unit_state: UNIT_STATE := UNIT_STATE_INSTRUCTION_PHASE;
+
 begin
     -- Handle control unit reset --
     process (reset)
@@ -39,54 +36,44 @@ begin
     -- Handle control unit states
     -- Feedback loop based on signal_unit_state FSM
     process (signal_reset_request, signal_unit_state)
+        variable var_registers: REGISTERS_RECORD;
+        variable var_memory_to_commmit: COMMIT_MEMORY_RECORD;
+        variable var_instruction_phase: INSTRUCTION_PHASE := INSTRUCTION_PHASE_FETCHING;
+        variable var_instruction_fetch_word_count: integer range 2 downto 0 := 0;
+        variable var_instruction_fetched: INSTRUCTION_BIT_VECTOR;
     begin
         -- Reset has been raised --
         if signal_reset_request then
             -- Reset CPU --
-            signal_registers <= (general => (others => (others => '0')),
-                                 special => (overflow_flag => false, 
-                                             condition_flag => false,
-                                             program_counter => (others => '0'))); 
-            -- In case we interrupted while being in commiting state --
-            signal_memory_to_commmit.has_commit <= false;
+            var_registers := (general => (others => (others => '0')),
+                              special => (overflow_flag => false, 
+                                          condition_flag => false,
+                                          program_counter => (others => '0'),
+                                          register_index_read_commit => (others => '0'))); 
             -- Do not wait for memory to set them to false --
             commit_read_memory <= false;
             commit_write_memory <= false;
             -- Will trigger again a new process execution --
-            signal_unit_state <= UNIT_STATE_BEGIN;
+            signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
         end if;
 
         case signal_unit_state is
-            -- Should never happen --
-            when UNIT_STATE_NOT_RUNNING =>
-                signal_unit_state <= UNIT_STATE_BEGIN;
-
-            -- This is an extra step, but maybe not needed, this in case we need extra logic --
-            when UNIT_STATE_BEGIN =>
-                signal_unit_state <= UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE;
-
-            when UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE =>
-                FetchAndDecodeAndExecuteInstruction(commit_read_memory,
-                                                    commit_write_memory,
-                                                    memory_size_read,
-                                                    memory_size_write,
-                                                    memory_address_read,
-                                                    memory_address_write,
-                                                    memory_data_read,
-                                                    memory_data_write,
-                                                    signal_registers,
-                                                    signal_has_asked_instruction,
-                                                    signal_unit_state,
-                                                    signal_memory_to_commmit);
-
+            when UNIT_STATE_INSTRUCTION_PHASE =>
+                case var_instruction_phase is
+                    when INSTRUCTION_PHASE_FETCHING =>
+                        HandleFetchInstruction(commit_read_memory,
+                                               memory_address_read,
+                                               memory_word_read,
+                                               var_registers,
+                                               signal_unit_state,
+                                               var_instruction_phase,
+                                               var_memory_to_commmit,
+                                               var_instruction_fetch_word_count,
+                                               var_instruction_fetched);
+                    when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
+                end case;
             when UNIT_STATE_COMMITING_MEMORY =>
-                CheckCommitMemory(signal_memory_to_commmit,
-                                  signal_registers.general,
-                                  commit_read_memory,
-                                  commit_write_memory,
-                                  memory_data_read,
-                                  memory_data_write,
-                                  signal_unit_state);
+
         end case;
     end process;
 
