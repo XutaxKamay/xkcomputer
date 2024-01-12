@@ -9,10 +9,12 @@ entity CentralProcessingUnit is
         reset: in boolean;
         commit_read_memory: inout boolean;
         commit_write_memory: inout boolean;
-        memory_address: inout CPU_ADDRESS_TYPE;
-        memory_data: inout MEMORY_BIT_VECTOR;
-        memory_size: out MEMORY_INTEGER_SIZE_TYPE;
-        memory_mode: out MEMORY_MODE_TYPE
+        memory_size_read: out MEMORY_INTEGER_SIZE_TYPE;
+        memory_size_write: out MEMORY_INTEGER_SIZE_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_write: out CPU_ADDRESS_TYPE;
+        memory_data_read: in MEMORY_BIT_VECTOR;
+        memory_data_write: out MEMORY_BIT_VECTOR
     );
 end CentralProcessingUnit;
 
@@ -66,10 +68,12 @@ begin
             when UNIT_STATE_FETCH_AND_DECODE_AND_EXECUTE =>
                 FetchAndDecodeAndExecuteInstruction(commit_read_memory,
                                                     commit_write_memory,
-                                                    memory_address,
-                                                    memory_size,
-                                                    memory_data,
-                                                    memory_mode,
+                                                    memory_size_read,
+                                                    memory_size_write,
+                                                    memory_address_read,
+                                                    memory_address_write,
+                                                    memory_data_read,
+                                                    memory_data_write,
                                                     signal_registers,
                                                     signal_has_asked_instruction,
                                                     signal_unit_state,
@@ -80,7 +84,8 @@ begin
                                   signal_registers.general,
                                   commit_read_memory,
                                   commit_write_memory,
-                                  memory_data,
+                                  memory_data_read,
+                                  memory_data_write,
                                   signal_unit_state);
         end case;
     end process;

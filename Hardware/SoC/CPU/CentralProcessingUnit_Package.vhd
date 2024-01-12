@@ -207,9 +207,8 @@ package CentralProcessingUnit_Package is
     procedure AskInstruction
     (
         signal commit_read_memory: inout boolean;
-        signal memory_address: inout CPU_ADDRESS_TYPE;
-        signal memory_size: inout MEMORY_INTEGER_SIZE_TYPE;
-        signal memory_mode: inout MEMORY_MODE_TYPE;
+        signal memory_address_read: inout CPU_ADDRESS_TYPE;
+        signal memory_size_read: inout MEMORY_INTEGER_SIZE_TYPE;
         signal program_counter: inout CPU_ADDRESS_TYPE
     );
 
@@ -230,10 +229,12 @@ package CentralProcessingUnit_Package is
     (
         signal commit_read_memory: inout boolean;
         signal commit_write_memory: inout boolean;
-        signal memory_address: inout CPU_ADDRESS_TYPE;
-        signal memory_size: inout MEMORY_INTEGER_SIZE_TYPE;
-        signal memory_data: inout MEMORY_BIT_VECTOR;
-        signal memory_mode: inout MEMORY_MODE_TYPE;
+        signal memory_size_read: inout MEMORY_INTEGER_SIZE_TYPE;
+        signal memory_size_write: inout MEMORY_INTEGER_SIZE_TYPE;
+        signal memory_address_read: inout CPU_ADDRESS_TYPE;
+        signal memory_address_write: inout CPU_ADDRESS_TYPE;
+        signal memory_data_read: in MEMORY_BIT_VECTOR;
+        signal memory_data_write: inout MEMORY_BIT_VECTOR;
         signal registers: inout REGISTERS_RECORD;
         signal has_asked_instruction: inout boolean;
         signal signal_unit_state: inout UNIT_STATE;
@@ -246,7 +247,8 @@ package CentralProcessingUnit_Package is
         signal general_registers: inout REGISTER_ARRAY;
         signal commit_read_memory: inout boolean;
         signal commit_write_memory: inout boolean;
-        signal memory_data: inout MEMORY_BIT_VECTOR;
+        signal memory_data_read: in MEMORY_BIT_VECTOR;
+        signal memory_data_write: inout MEMORY_BIT_VECTOR;
         signal signal_unit_state: inout UNIT_STATE
     );
 
@@ -370,17 +372,15 @@ package body CentralProcessingUnit_Package is
     procedure AskInstruction
     (
         signal commit_read_memory: inout boolean;
-        signal memory_address: inout CPU_ADDRESS_TYPE;
-        signal memory_size: inout MEMORY_INTEGER_SIZE_TYPE;
-        signal memory_mode: inout MEMORY_MODE_TYPE;
+        signal memory_address_read: inout CPU_ADDRESS_TYPE;
+        signal memory_size_read: inout MEMORY_INTEGER_SIZE_TYPE;
         signal program_counter: inout CPU_ADDRESS_TYPE
     ) is
     begin
-        memory_address <= program_counter;
+        memory_address_read <= program_counter;
         -- Incrementing program counter here --
         program_counter <= program_counter + INSTRUCTION_SIZE;
-        memory_size <= INSTRUCTION_SIZE;
-        memory_mode <= MEMORY_MODE_READ;
+        memory_size_read <= INSTRUCTION_SIZE;
         -- Signal the external component for reading memory --
         commit_read_memory <= true;
     end AskInstruction;
@@ -549,10 +549,12 @@ package body CentralProcessingUnit_Package is
     (
         signal commit_read_memory: inout boolean;
         signal commit_write_memory: inout boolean;
-        signal memory_address: inout CPU_ADDRESS_TYPE;
-        signal memory_size: inout MEMORY_INTEGER_SIZE_TYPE;
-        signal memory_data: inout MEMORY_BIT_VECTOR;
-        signal memory_mode: inout MEMORY_MODE_TYPE;
+        signal memory_size_read: inout MEMORY_INTEGER_SIZE_TYPE;
+        signal memory_size_write: inout MEMORY_INTEGER_SIZE_TYPE;
+        signal memory_address_read: inout CPU_ADDRESS_TYPE;
+        signal memory_address_write: inout CPU_ADDRESS_TYPE;
+        signal memory_data_read: in MEMORY_BIT_VECTOR;
+        signal memory_data_write: inout MEMORY_BIT_VECTOR;
         signal registers: inout REGISTERS_RECORD;
         signal has_asked_instruction: inout boolean;
         signal signal_unit_state: inout UNIT_STATE;
@@ -570,9 +572,8 @@ package body CentralProcessingUnit_Package is
 
             -- Ask a new instruction from memory --
             AskInstruction(commit_read_memory,
-                           memory_address,
-                           memory_size,
-                           memory_mode,
+                           memory_address_read,
+                           memory_size_read,
                            registers.special.program_counter);
             -- Then wait for memory commiting --
             signal_unit_state <= UNIT_STATE_BEGIN;
@@ -582,7 +583,7 @@ package body CentralProcessingUnit_Package is
                 has_asked_instruction <= false;
 
                 -- Get instruction data --
-                var_instruction_fetched := memory_data((INSTRUCTION_SIZE - 1) downto 0);
+                var_instruction_fetched := memory_data_read((INSTRUCTION_SIZE - 1) downto 0);
 
                 -- Decode instruction --
                 var_decoded_instruction := DecodeInstruction(var_instruction_fetched);
@@ -595,14 +596,16 @@ package body CentralProcessingUnit_Package is
 
                 -- Check if we have to commit memory --
                 if should_commit_memory then
-                    memory_mode <= memory_to_commit.mode;
-                    memory_size <= CPU_INTEGER_TYPE_SIZE;
-                    memory_address <= memory_to_commit.address;
-
-                    if memory_mode = MEMORY_MODE_WRITE then
-                        memory_data((CPU_INTEGER_TYPE_SIZE - 1) downto 0) 
-                            <= to_bitvector(std_logic_vector(memory_to_commit.value));
-                    end if;
+                    case memory_to_commit.mode is
+                        when MEMORY_MODE_READ =>
+                            memory_size_read <= CPU_INTEGER_TYPE_SIZE;
+                            memory_address_read <= memory_to_commit.address;
+                        when MEMORY_MODE_WRITE =>
+                            memory_size_write <= CPU_INTEGER_TYPE_SIZE;
+                            memory_address_write <= memory_to_commit.address;
+                            memory_data_write((CPU_INTEGER_TYPE_SIZE - 1) downto 0) 
+                                <= to_bitvector(std_logic_vector(memory_to_commit.value));
+                    end case;
 
                     -- Finally, change state as soon as possible to wait for commiting memory --
                     signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
@@ -620,7 +623,8 @@ package body CentralProcessingUnit_Package is
         signal general_registers: inout REGISTER_ARRAY;
         signal commit_read_memory: inout boolean;
         signal commit_write_memory: inout boolean;
-        signal memory_data: inout MEMORY_BIT_VECTOR;
+        signal memory_data_read: in MEMORY_BIT_VECTOR;
+        signal memory_data_write: inout MEMORY_BIT_VECTOR;
         signal signal_unit_state: inout UNIT_STATE
     ) is
     begin
@@ -643,7 +647,7 @@ package body CentralProcessingUnit_Package is
 
                 if memory_to_commit.mode = MEMORY_MODE_READ then
                     general_registers(to_integer(memory_to_commit.register_index))
-                        <= CPU_INTEGER_TYPE(to_stdlogicvector(memory_data((CPU_ADDRESS_TYPE_SIZE - 1) downto 0)));
+                        <= CPU_INTEGER_TYPE(to_stdlogicvector(memory_data_read((CPU_ADDRESS_TYPE_SIZE - 1) downto 0)));
                 end if;
 
                 memory_to_commit.has_commit <= false;
