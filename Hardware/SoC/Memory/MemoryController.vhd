@@ -3,19 +3,19 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.CentralProcessingUnit_Package.all;
 
-entity Memory is
+entity MemoryController is
     port
     (
         commit_read_memory: inout boolean;
         commit_write_memory: inout boolean;
-        memory_address_read: in CPU_ADDRESS_TYPE;
-        memory_address_write: in CPU_ADDRESS_TYPE;
+        memory_address_read: inout CPU_ADDRESS_TYPE;
+        memory_address_write: inout CPU_ADDRESS_TYPE;
         memory_word_read: out MEMORY_WORD_TYPE;
         memory_word_write: in MEMORY_WORD_TYPE
     );
-end Memory;
+end MemoryController;
 
-architecture Memory_Implementation of Memory is    
+architecture MemoryController_Implementation of MemoryController is    
     signal internal_memory: BIT_VECTOR(REAL_MEMORY_END_ADDRESS downto 0);
 begin
     process (commit_read_memory)
@@ -25,9 +25,9 @@ begin
                 for i in 0 to MEMORY_WORD_TYPE'length - 1 loop
                     memory_word_read(i) <= internal_memory(to_integer(memory_address_read) + i);
                 end loop;
-                -- ack --
-                commit_read_memory <= false;
             end if;
+            -- ack --
+            commit_read_memory <= false;
        end if;
     end process;
 
@@ -38,9 +38,9 @@ begin
                 for i in 0 to MEMORY_WORD_TYPE'length - 1 loop
                     internal_memory(to_integer(memory_address_write) + i) <= memory_word_write(i);
                 end loop;
-                -- ack --
-                commit_write_memory <= false;
             end if;
+            -- ack --
+            commit_write_memory <= false;
        end if;
     end process;
-end Memory_Implementation;
+end MemoryController_Implementation;
