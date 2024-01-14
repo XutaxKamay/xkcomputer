@@ -8,8 +8,8 @@ entity MemoryController is
     (
         commit_read_memory: inout boolean;
         commit_write_memory: inout boolean;
-        memory_address_read: inout CPU_ADDRESS_TYPE;
-        memory_address_write: inout CPU_ADDRESS_TYPE;
+        memory_address_read: in CPU_ADDRESS_TYPE;
+        memory_address_write: in CPU_ADDRESS_TYPE;
         memory_word_read: out MEMORY_WORD_TYPE;
         memory_word_write: in MEMORY_WORD_TYPE
     );

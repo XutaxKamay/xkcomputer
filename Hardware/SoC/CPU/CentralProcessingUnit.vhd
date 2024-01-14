@@ -9,8 +9,8 @@ entity CentralProcessingUnit is
         reset: in boolean;
         commit_read_memory: inout boolean;
         commit_write_memory: inout boolean;
-        memory_address_read: inout CPU_ADDRESS_TYPE;
-        memory_address_write: inout CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_write: out CPU_ADDRESS_TYPE;
         memory_word_read: in MEMORY_WORD_TYPE;
         memory_word_write: out MEMORY_WORD_TYPE
     );
@@ -39,7 +39,7 @@ begin
         variable var_registers: REGISTERS_RECORD;
         variable var_instruction_phase: INSTRUCTION_PHASE := INSTRUCTION_PHASE_FETCHING;
         variable var_instruction_to_commit: COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        variable var_word_to_commit: COMMIT_MEMORY_WORD_TYPE;
+        variable var_word_to_commit: PREPARE_MEMORY_WORD_TO_COMMIT_TYPE;
     begin
         -- Reset has been raised --
         if signal_reset_request then

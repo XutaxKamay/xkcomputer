@@ -10,8 +10,8 @@ package CentralProcessingUnit_Package is
         MEMORY_MODE_WRITE
     );
 
-    -- 256 bits, ideal for AES and other encryptions --
-    constant MAX_INTEGER_BITS: integer := 2**8;
+    -- 256 bits, ideal for AES and other encryption methods --
+    constant MAX_INTEGER_BITS: integer := 256;
 
     subtype ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) downto 0);
     subtype MAX_ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS * 2 - 1) downto 0);
@@ -176,7 +176,7 @@ package CentralProcessingUnit_Package is
     -- Need specialized type for such fetchs --
     type COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE is record
         address: CPU_ADDRESS_TYPE;
-        bits_buffer: INSTRUCTION_TEMPORARY_FETCH_BIT_VECTOR;
+        bit_buffer: INSTRUCTION_TEMPORARY_FETCH_BIT_VECTOR;
         bit_count: integer;
         bit_index: integer;
         bit_shift: integer;
@@ -205,9 +205,9 @@ package CentralProcessingUnit_Package is
         -- words in order to write them again correctly.
         -- Normally, this isn't needed, but in case
         -- of encryption/decryption, it is.
-        mode: MEMORY_MODE_TYPE;
+        needs_read_first: boolean;
         address: CPU_ADDRESS_TYPE;
-        bits_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
+        bit_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
         bit_count: integer;
         bit_index: integer;
         bit_shift: integer;
@@ -216,7 +216,7 @@ package CentralProcessingUnit_Package is
 
     type READ_WORD_TO_COMMIT_TYPE is record
         address: CPU_ADDRESS_TYPE;
-        bits_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
+        bit_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
         bit_count: integer;
         bit_index: integer;
         bit_shift: integer;
@@ -256,7 +256,7 @@ package CentralProcessingUnit_Package is
     procedure AskFetchInstruction
     (
         signal commit_read_memory: inout boolean;
-        signal memory_address_read: inout CPU_ADDRESS_TYPE;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE
@@ -265,9 +265,18 @@ package CentralProcessingUnit_Package is
     procedure HandleFetchInstruction
     (
         signal commit_read_memory: inout boolean;
-        signal memory_address_read: inout CPU_ADDRESS_TYPE;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in MEMORY_WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
+        signal signal_unit_state: inout UNIT_STATE;
+        var_instruction_phase: out INSTRUCTION_PHASE
+    );
+
+    procedure DecodeAndExecuteInstruction
+    (
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
+        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE;
+        registers: inout REGISTERS_RECORD;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
     );
@@ -564,7 +573,7 @@ package body CentralProcessingUnit_Package is
     procedure AskFetchInstruction
     (
         signal commit_read_memory: inout boolean;
-        signal memory_address_read: inout CPU_ADDRESS_TYPE;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE
@@ -583,7 +592,7 @@ package body CentralProcessingUnit_Package is
     procedure HandleFetchInstruction
     (
         signal commit_read_memory: inout boolean;
-        signal memory_address_read: inout CPU_ADDRESS_TYPE;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in MEMORY_WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
@@ -593,7 +602,7 @@ package body CentralProcessingUnit_Package is
         -- Wait for memory commit --
         if not commit_read_memory then
             -- Store the bits inside a buffer, they will be decoded later --
-            instruction_to_commit.bits_buffer
+            instruction_to_commit.bit_buffer
                 ((instruction_to_commit.bit_index + MAX_WORD_BITS - 1) 
                     downto instruction_to_commit.bit_index) := memory_word_read;
             instruction_to_commit.bit_index := instruction_to_commit.bit_index + MAX_WORD_BITS;
@@ -613,7 +622,7 @@ package body CentralProcessingUnit_Package is
 
             -- Do we keep fetching ? --
             if instruction_to_commit.bit_count < INSTRUCTION_SIZE then
-                memory_address_read <= memory_address_read + MAX_WORD_BITS;
+                memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
                 commit_read_memory <= true;
                 signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
             else
@@ -623,5 +632,31 @@ package body CentralProcessingUnit_Package is
             end if;
         end if;
     end HandleFetchInstruction;
+
+    procedure DecodeAndExecuteInstruction
+    (
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
+        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE;
+        registers: inout REGISTERS_RECORD;
+        signal signal_unit_state: inout UNIT_STATE;
+        var_instruction_phase: out INSTRUCTION_PHASE
+    ) is
+        variable encoded_instruction: INSTRUCTION_BIT_VECTOR;
+        variable decoded_instruction: INSTRUCTION;
+        variable should_commit_memory: boolean := false;
+    begin
+
+        -- Decode instruction --
+        encoded_instruction := instruction_to_commit.bit_buffer(
+            (INSTRUCTION_SIZE + instruction_to_commit.bit_shift - 1) to instruction_to_commit.bit_shift);
+        decoded_instruction := DecodeInstruction(encoded_instruction);
+        
+        -- Execute instruction --
+        ExecuteInstruction(decoded_instruction, registers, should_commit_memory, memory_to_commit);
+
+        if should_commit_memory then
+            
+        end if;
+    end;
 
 end CentralProcessingUnit_Package;
