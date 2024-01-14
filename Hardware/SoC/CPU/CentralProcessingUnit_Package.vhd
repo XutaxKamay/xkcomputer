@@ -177,15 +177,49 @@ package CentralProcessingUnit_Package is
     type COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE is record
         address: CPU_ADDRESS_TYPE;
         bits_buffer: INSTRUCTION_TEMPORARY_FETCH_BIT_VECTOR;
-        bits_count: integer;
-        bits_count_real: integer;
-        bits_shift: integer;
+        bit_count: integer;
+        bit_index: integer;
+        bit_shift: integer;
     end record;
 
-    type COMMIT_MEMORY_WORD_TYPE is record
-        mode: MEMORY_MODE_TYPE;
+    type COMMIT_READ_MEMORY_WORD_TYPE is record
+        register_index: REGISTER_INDEX_TYPE;
+    end record;
+
+    type COMMIT_WRITE_MEMORY_WORD_TYPE is record
         word_value: CPU_INTEGER_TYPE;
+    end record;
+
+    type PREPARE_MEMORY_WORD_TO_COMMIT_TYPE is record
+        mode: MEMORY_MODE_TYPE;
         address: CPU_ADDRESS_TYPE;
+        read_word: COMMIT_READ_MEMORY_WORD_TYPE;
+        write_word: COMMIT_WRITE_MEMORY_WORD_TYPE;
+    end record;
+
+    type WRITE_WORD_TO_COMMIT_TYPE is record
+        ---------------------------------------------------------
+        -- First we need to read to words, and then write them.
+        -- This is because the address can be misaligned
+        -- to a word, so we need to retrieve the old
+        -- words in order to write them again correctly.
+        -- Normally, this isn't needed, but in case
+        -- of encryption/decryption, it is.
+        mode: MEMORY_MODE_TYPE;
+        address: CPU_ADDRESS_TYPE;
+        bits_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
+        bit_count: integer;
+        bit_index: integer;
+        bit_shift: integer;
+        word_value: CPU_INTEGER_TYPE;
+    end record;
+
+    type READ_WORD_TO_COMMIT_TYPE is record
+        address: CPU_ADDRESS_TYPE;
+        bits_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
+        bit_count: integer;
+        bit_index: integer;
+        bit_shift: integer;
         register_index: REGISTER_INDEX_TYPE;
     end record;
 
@@ -203,7 +237,7 @@ package CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        memory_to_commit: inout COMMIT_MEMORY_WORD_TYPE
+        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE
     );
 
     function DecodeInstruction
@@ -216,7 +250,7 @@ package CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        memory_to_commit: inout COMMIT_MEMORY_WORD_TYPE
+        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE
     );
 
     procedure AskFetchInstruction
@@ -236,20 +270,6 @@ package CentralProcessingUnit_Package is
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
-    );
-
-    procedure HandleWordCommit
-    (
-        commit_read_memory: inout boolean;
-        commit_write_memory: inout boolean;
-        memory_address_read: inout CPU_ADDRESS_TYPE;
-        memory_address_write: inout CPU_ADDRESS_TYPE;
-        memory_word_read: in MEMORY_WORD_TYPE;
-        memory_word_write: out MEMORY_WORD_TYPE;
-        memory_to_commit: inout COMMIT_MEMORY_WORD_TYPE;
-        signal signal_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE;
-        registers: inout REGISTERS_RECORD
     );
 
 end CentralProcessingUnit_Package;
@@ -330,7 +350,7 @@ package body CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        memory_to_commit: inout COMMIT_MEMORY_WORD_TYPE
+        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE
     ) is
     begin
         should_commit_memory := true;
@@ -343,14 +363,14 @@ package body CentralProcessingUnit_Package is
                     when MEMORY_MODE_READ =>
                         memory_to_commit.address
                             := registers.general(to_integer(decoded_instruction.operand_right.register_index));
-                        memory_to_commit.register_index
+                        memory_to_commit.read_word.register_index
                             := decoded_instruction.operand_left.register_index;
 
                     -- write reg1, reg2 --
                     when MEMORY_MODE_WRITE =>
                         memory_to_commit.address
                             := registers.general(to_integer(decoded_instruction.operand_right.register_index));
-                        memory_to_commit.word_value
+                        memory_to_commit.write_word.word_value
                             := registers.general(to_integer(decoded_instruction.operand_left.register_index));
                 end case;
 
@@ -360,14 +380,14 @@ package body CentralProcessingUnit_Package is
                     when MEMORY_MODE_READ =>
                         memory_to_commit.address
                             := decoded_instruction.operand_right.integer_value;
-                        memory_to_commit.register_index
+                        memory_to_commit.read_word.register_index
                             := decoded_instruction.operand_left.register_index;
 
                     -- write reg1, address --
                     when MEMORY_MODE_WRITE =>
                         memory_to_commit.address
                             := decoded_instruction.operand_right.integer_value;
-                        memory_to_commit.word_value
+                        memory_to_commit.write_word.word_value
                             := registers.general(to_integer(decoded_instruction.operand_left.register_index));
                 end case;
         end case;
@@ -408,7 +428,7 @@ package body CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        memory_to_commit: inout COMMIT_MEMORY_WORD_TYPE
+        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE
     ) is
 
         variable alu_integer_out: ALU_INTEGER_OUT_TYPE;
@@ -549,13 +569,13 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE
     ) is
-        variable bits_shift: integer := to_integer(instruction_to_commit.address mod MAX_WORD_BITS);
+        variable bit_shift: integer := to_integer(instruction_to_commit.address mod MAX_WORD_BITS);
     begin
         instruction_to_commit.address := registers.special.program_counter;
-        instruction_to_commit.bits_count := 0;
-        instruction_to_commit.bits_count_real := 0;
-        instruction_to_commit.bits_shift := bits_shift;
-        memory_address_read <= instruction_to_commit.address - instruction_to_commit.bits_shift;
+        instruction_to_commit.bit_count := 0;
+        instruction_to_commit.bit_index := 0;
+        instruction_to_commit.bit_shift := bit_shift;
+        memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift;
         commit_read_memory <= true;
         signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
     end AskFetchInstruction;
@@ -574,9 +594,9 @@ package body CentralProcessingUnit_Package is
         if not commit_read_memory then
             -- Store the bits inside a buffer, they will be decoded later --
             instruction_to_commit.bits_buffer
-                ((instruction_to_commit.bits_count_real + MAX_WORD_BITS - 1) 
-                    downto instruction_to_commit.bits_count_real) := memory_word_read;
-            instruction_to_commit.bits_count_real := instruction_to_commit.bits_count_real + MAX_WORD_BITS;
+                ((instruction_to_commit.bit_index + MAX_WORD_BITS - 1) 
+                    downto instruction_to_commit.bit_index) := memory_word_read;
+            instruction_to_commit.bit_index := instruction_to_commit.bit_index + MAX_WORD_BITS;
 
             -- TODO: Decrypt memory here --
 
@@ -584,15 +604,15 @@ package body CentralProcessingUnit_Package is
             -- Increment to MAX_WORD_BITS - shift,
             -- the shift is used so we're sure that we got the exact number of bits we want
             -- This is only needed the first time though
-            if instruction_to_commit.bits_count = 0 then
-                instruction_to_commit.bits_count := instruction_to_commit.bits_count
-                    + (MAX_WORD_BITS - instruction_to_commit.bits_shift);
+            if instruction_to_commit.bit_count = 0 then
+                instruction_to_commit.bit_count := instruction_to_commit.bit_count
+                    + (MAX_WORD_BITS - instruction_to_commit.bit_shift);
             else
-                instruction_to_commit.bits_count := instruction_to_commit.bits_count + MAX_WORD_BITS;
+                instruction_to_commit.bit_count := instruction_to_commit.bit_count + MAX_WORD_BITS;
             end if;
 
             -- Do we keep fetching ? --
-            if instruction_to_commit.bits_count < INSTRUCTION_SIZE then
+            if instruction_to_commit.bit_count < INSTRUCTION_SIZE then
                 memory_address_read <= memory_address_read + MAX_WORD_BITS;
                 commit_read_memory <= true;
                 signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
@@ -603,21 +623,5 @@ package body CentralProcessingUnit_Package is
             end if;
         end if;
     end HandleFetchInstruction;
-
-    procedure HandleWordCommit
-    (
-        commit_read_memory: inout boolean;
-        commit_write_memory: inout boolean;
-        memory_address_read: inout CPU_ADDRESS_TYPE;
-        memory_address_write: inout CPU_ADDRESS_TYPE;
-        memory_word_read: in MEMORY_WORD_TYPE;
-        memory_word_write: out MEMORY_WORD_TYPE;
-        memory_to_commit: inout COMMIT_MEMORY_WORD_TYPE;
-        signal signal_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE;
-        registers: inout REGISTERS_RECORD
-    ) is
-    begin
-    end;
 
 end CentralProcessingUnit_Package;
