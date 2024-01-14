@@ -10,8 +10,8 @@ entity MemoryController is
         commit_write_memory: inout boolean;
         memory_address_read: in CPU_ADDRESS_TYPE;
         memory_address_write: in CPU_ADDRESS_TYPE;
-        memory_word_read: out MEMORY_WORD_TYPE;
-        memory_word_write: in MEMORY_WORD_TYPE
+        memory_word_read: out WORD_TYPE;
+        memory_word_write: in WORD_TYPE
     );
 end MemoryController;
 
@@ -21,8 +21,8 @@ begin
     process (commit_read_memory)
     begin
        if commit_read_memory then
-            if memory_address_read + MEMORY_WORD_TYPE'length - 1 < MMIO_ADDRESS_START then
-                for i in 0 to MEMORY_WORD_TYPE'length - 1 loop
+            if memory_address_read + WORD_TYPE'length - 1 < MMIO_ADDRESS_START then
+                for i in 0 to WORD_TYPE'length - 1 loop
                     memory_word_read(i) <= internal_memory(to_integer(memory_address_read) + i);
                 end loop;
             end if;
@@ -34,8 +34,8 @@ begin
     process (commit_write_memory)
     begin
        if commit_write_memory then
-            if memory_address_write + MEMORY_WORD_TYPE'length - 1 < MMIO_ADDRESS_START then
-                for i in 0 to MEMORY_WORD_TYPE'length - 1 loop
+            if memory_address_write + WORD_TYPE'length - 1 < MMIO_ADDRESS_START then
+                for i in 0 to WORD_TYPE'length - 1 loop
                     internal_memory(to_integer(memory_address_write) + i) <= memory_word_write(i);
                 end loop;
             end if;

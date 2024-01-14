@@ -11,8 +11,8 @@ entity CentralProcessingUnit is
         commit_write_memory: inout boolean;
         memory_address_read: out CPU_ADDRESS_TYPE;
         memory_address_write: out CPU_ADDRESS_TYPE;
-        memory_word_read: in MEMORY_WORD_TYPE;
-        memory_word_write: out MEMORY_WORD_TYPE
+        memory_word_read: in WORD_TYPE;
+        memory_word_write: out WORD_TYPE
     );
 end CentralProcessingUnit;
 
@@ -39,7 +39,8 @@ begin
         variable var_registers: REGISTERS_RECORD;
         variable var_instruction_phase: INSTRUCTION_PHASE := INSTRUCTION_PHASE_FETCHING;
         variable var_instruction_to_commit: COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        variable var_word_to_commit: PREPARE_MEMORY_WORD_TO_COMMIT_TYPE;
+        variable var_word_to_commit: WORD_TO_COMMIT_TYPE;
+        variable var_memory_mode_to_commit: MEMORY_MODE_TYPE;
     begin
         -- Reset has been raised --
         if signal_reset_request then
@@ -73,6 +74,11 @@ begin
                                             var_instruction_to_commit,
                                             signal_unit_state);
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
+                        DecodeAndExecuteInstruction(var_instruction_to_commit,
+                                                    var_registers,
+                                                    var_word_to_commit,
+                                                    signal_unit_state,
+                                                    var_instruction_phase);
                 end case;
             when UNIT_STATE_COMMITING_MEMORY =>
                 case var_instruction_phase is
@@ -84,6 +90,16 @@ begin
                                                signal_unit_state,
                                                var_instruction_phase);
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
+                        HandlePostExecution(commit_read_memory,
+                                            commit_write_memory,
+                                            memory_address_read,
+                                            memory_address_write,
+                                            memory_word_read,
+                                            memory_word_write,
+                                            var_word_to_commit,
+                                            var_registers,
+                                            signal_unit_state,
+                                            var_instruction_phase);
                 end case;
         end case;
     end process;

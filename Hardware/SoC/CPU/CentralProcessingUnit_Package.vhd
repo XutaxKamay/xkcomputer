@@ -142,11 +142,11 @@ package CentralProcessingUnit_Package is
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_INDEX_TYPE_SIZE);
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
     
-    constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_MEMORY_WORDS: integer := INSTRUCTION_BIT_VECTOR'length 
+    constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS: integer := INSTRUCTION_BIT_VECTOR'length 
         + (CPU_INTEGER_TYPE_SIZE - INSTRUCTION_BIT_VECTOR'length mod CPU_INTEGER_TYPE_SIZE);
 
     subtype INSTRUCTION_TEMPORARY_FETCH_BIT_VECTOR is
-        BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_MEMORY_WORDS - 1) downto 0);
+        BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS - 1) downto 0);
 
     -----------------------------------------------------------------
     -- DO NOT CHANGE THIS.
@@ -157,7 +157,7 @@ package CentralProcessingUnit_Package is
     -- and we would loose some performance.
     -- Downside of this, we need 2~ loops for reading an instruction
     constant MAX_WORD_BITS: integer := CPU_INTEGER_TYPE'length;
-    subtype MEMORY_WORD_TYPE is BIT_VECTOR((MAX_WORD_BITS - 1) downto 0);
+    subtype WORD_TYPE is BIT_VECTOR((MAX_WORD_BITS - 1) downto 0);
     constant NUMBER_OF_LOOPS_FOR_FULL_INSTRUCTION: integer := 1 + INSTRUCTION_SIZE / MAX_WORD_BITS;
     subtype INTEGER_FOR_FULL_INSTRUCTION_TYPE is integer range NUMBER_OF_LOOPS_FOR_FULL_INSTRUCTION downto 0;
 
@@ -182,22 +182,12 @@ package CentralProcessingUnit_Package is
         bit_shift: integer;
     end record;
 
-    type COMMIT_READ_MEMORY_WORD_TYPE is record
+    type COMMIT_READ_WORD_TYPE is record
         register_index: REGISTER_INDEX_TYPE;
     end record;
 
-    type COMMIT_WRITE_MEMORY_WORD_TYPE is record
+    type COMMIT_WRITE_WORD_TYPE is record
         word_value: CPU_INTEGER_TYPE;
-    end record;
-
-    type PREPARE_MEMORY_WORD_TO_COMMIT_TYPE is record
-        mode: MEMORY_MODE_TYPE;
-        address: CPU_ADDRESS_TYPE;
-        read_word: COMMIT_READ_MEMORY_WORD_TYPE;
-        write_word: COMMIT_WRITE_MEMORY_WORD_TYPE;
-    end record;
-
-    type WRITE_WORD_TO_COMMIT_TYPE is record
         ---------------------------------------------------------
         -- First we need to read to words, and then write them.
         -- This is because the address can be misaligned
@@ -206,21 +196,17 @@ package CentralProcessingUnit_Package is
         -- Normally, this isn't needed, but in case
         -- of encryption/decryption, it is.
         needs_read_first: boolean;
-        address: CPU_ADDRESS_TYPE;
-        bit_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
-        bit_count: integer;
-        bit_index: integer;
-        bit_shift: integer;
-        word_value: CPU_INTEGER_TYPE;
     end record;
 
-    type READ_WORD_TO_COMMIT_TYPE is record
+    type WORD_TO_COMMIT_TYPE is record
+        mode: MEMORY_MODE_TYPE;
         address: CPU_ADDRESS_TYPE;
+        read_type: COMMIT_READ_WORD_TYPE;
+        write_type: COMMIT_WRITE_WORD_TYPE;
         bit_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
         bit_count: integer;
         bit_index: integer;
         bit_shift: integer;
-        register_index: REGISTER_INDEX_TYPE;
     end record;
 
     -- Function and procedures --
@@ -237,7 +223,7 @@ package CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE
+        word_to_commit: inout WORD_TO_COMMIT_TYPE
     );
 
     function DecodeInstruction
@@ -250,7 +236,7 @@ package CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE
+        word_to_commit: inout WORD_TO_COMMIT_TYPE
     );
 
     procedure AskFetchInstruction
@@ -266,7 +252,7 @@ package CentralProcessingUnit_Package is
     (
         signal commit_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in MEMORY_WORD_TYPE;
+        signal word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
@@ -275,7 +261,21 @@ package CentralProcessingUnit_Package is
     procedure DecodeAndExecuteInstruction
     (
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE;
+        registers: inout REGISTERS_RECORD;
+        word_to_commit: inout WORD_TO_COMMIT_TYPE;
+        signal signal_unit_state: inout UNIT_STATE;
+        var_instruction_phase: out INSTRUCTION_PHASE
+    );
+
+    procedure HandlePostExecution
+    (
+        signal commit_read_memory: inout boolean;
+        signal commit_write_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        signal memory_address_write: out CPU_ADDRESS_TYPE;
+        signal memory_word_read: in WORD_TYPE;
+        signal memory_word_write: out WORD_TYPE;
+        word_to_commit: inout WORD_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
@@ -359,27 +359,27 @@ package body CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE
+        word_to_commit: inout WORD_TO_COMMIT_TYPE
     ) is
     begin
         should_commit_memory := true;
-        memory_to_commit.mode := mode;
+        word_to_commit.mode := mode;
 
         case decoded_instruction.operand_right.mode is
             when OPERAND_REGISTER =>
                 case mode is
                     -- read reg1, reg2 --
                     when MEMORY_MODE_READ =>
-                        memory_to_commit.address
+                        word_to_commit.address
                             := registers.general(to_integer(decoded_instruction.operand_right.register_index));
-                        memory_to_commit.read_word.register_index
+                        word_to_commit.read_type.register_index
                             := decoded_instruction.operand_left.register_index;
 
                     -- write reg1, reg2 --
                     when MEMORY_MODE_WRITE =>
-                        memory_to_commit.address
+                        word_to_commit.address
                             := registers.general(to_integer(decoded_instruction.operand_right.register_index));
-                        memory_to_commit.write_word.word_value
+                        word_to_commit.write_type.word_value
                             := registers.general(to_integer(decoded_instruction.operand_left.register_index));
                 end case;
 
@@ -387,16 +387,16 @@ package body CentralProcessingUnit_Package is
                 case mode is
                     -- read reg1, address --
                     when MEMORY_MODE_READ =>
-                        memory_to_commit.address
+                        word_to_commit.address
                             := decoded_instruction.operand_right.integer_value;
-                        memory_to_commit.read_word.register_index
+                        word_to_commit.read_type.register_index
                             := decoded_instruction.operand_left.register_index;
 
                     -- write reg1, address --
                     when MEMORY_MODE_WRITE =>
-                        memory_to_commit.address
+                        word_to_commit.address
                             := decoded_instruction.operand_right.integer_value;
-                        memory_to_commit.write_word.word_value
+                        word_to_commit.write_type.word_value
                             := registers.general(to_integer(decoded_instruction.operand_left.register_index));
                 end case;
         end case;
@@ -437,7 +437,7 @@ package body CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE
+        word_to_commit: inout WORD_TO_COMMIT_TYPE
     ) is
 
         variable alu_integer_out: ALU_INTEGER_OUT_TYPE;
@@ -485,14 +485,14 @@ package body CentralProcessingUnit_Package is
                                        decoded_instruction,
                                        registers,
                                        should_commit_memory,
-                                       memory_to_commit);
+                                       word_to_commit);
 
             when OPCODE_TYPE_WRITE =>
                 HandleMemoryOperations(MEMORY_MODE_WRITE,
                                        decoded_instruction,
                                        registers,
                                        should_commit_memory,
-                                       memory_to_commit);
+                                       word_to_commit);
 
             when OPCODE_TYPE_IS_BIGGER =>
                 operation_type := ALU_OPERATION_TYPE_BIGGER;
@@ -593,7 +593,7 @@ package body CentralProcessingUnit_Package is
     (
         signal commit_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in MEMORY_WORD_TYPE;
+        signal word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
@@ -604,7 +604,7 @@ package body CentralProcessingUnit_Package is
             -- Store the bits inside a buffer, they will be decoded later --
             instruction_to_commit.bit_buffer
                 ((instruction_to_commit.bit_index + MAX_WORD_BITS - 1) 
-                    downto instruction_to_commit.bit_index) := memory_word_read;
+                    downto instruction_to_commit.bit_index) := word_read;
             instruction_to_commit.bit_index := instruction_to_commit.bit_index + MAX_WORD_BITS;
 
             -- TODO: Decrypt memory here --
@@ -636,8 +636,8 @@ package body CentralProcessingUnit_Package is
     procedure DecodeAndExecuteInstruction
     (
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        memory_to_commit: inout PREPARE_MEMORY_WORD_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
+        word_to_commit: inout WORD_TO_COMMIT_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
     ) is
@@ -648,15 +648,48 @@ package body CentralProcessingUnit_Package is
 
         -- Decode instruction --
         encoded_instruction := instruction_to_commit.bit_buffer(
-            (INSTRUCTION_SIZE + instruction_to_commit.bit_shift - 1) to instruction_to_commit.bit_shift);
+            (INSTRUCTION_SIZE + instruction_to_commit.bit_shift - 1) downto instruction_to_commit.bit_shift);
         decoded_instruction := DecodeInstruction(encoded_instruction);
         
         -- Execute instruction --
-        ExecuteInstruction(decoded_instruction, registers, should_commit_memory, memory_to_commit);
+        ExecuteInstruction(decoded_instruction, registers, should_commit_memory, word_to_commit);
 
+        -- Should we commit memory before going on another instruction ? --
         if should_commit_memory then
-            
+            word_to_commit.bit_count := 0;
+            word_to_commit.bit_index := 0;
+            word_to_commit.bit_shift := 0;
+
+            if word_to_commit.mode = MEMORY_MODE_WRITE then
+                word_to_commit.write_type.needs_read_first := true;
+            end if;
+
+            signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
+        -- Otherwise fetch again another instruction --
+        else
+            var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
+            signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
         end if;
-    end;
+    end DecodeAndExecuteInstruction;
+
+    procedure HandlePostExecution
+    (
+        signal commit_read_memory: inout boolean;
+        signal commit_write_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        signal memory_address_write: out CPU_ADDRESS_TYPE;
+        signal memory_word_read: in WORD_TYPE;
+        signal memory_word_write: out WORD_TYPE;
+        word_to_commit: inout WORD_TO_COMMIT_TYPE;
+        registers: inout REGISTERS_RECORD;
+        signal signal_unit_state: inout UNIT_STATE;
+        var_instruction_phase: out INSTRUCTION_PHASE
+    ) is
+    begin
+        case word_to_commit.mode is
+            when MEMORY_MODE_READ =>
+            when MEMORY_MODE_WRITE =>
+        end case;
+    end HandlePostExecution;
 
 end CentralProcessingUnit_Package;
