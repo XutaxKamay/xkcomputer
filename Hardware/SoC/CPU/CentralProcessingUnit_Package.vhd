@@ -156,9 +156,9 @@ package CentralProcessingUnit_Package is
     -- memory word and write again another time,
     -- and we would loose some performance.
     -- Downside of this, we need 2~ loops for reading an instruction
-    constant MAX_WORD_BITS: integer := CPU_INTEGER_TYPE'length;
-    subtype WORD_TYPE is BIT_VECTOR((MAX_WORD_BITS - 1) downto 0);
-    constant NUMBER_OF_LOOPS_FOR_FULL_INSTRUCTION: integer := 1 + INSTRUCTION_SIZE / MAX_WORD_BITS;
+    constant WORD_BITS: integer := CPU_INTEGER_TYPE'length;
+    subtype WORD_TYPE is BIT_VECTOR((WORD_BITS - 1) downto 0);
+    constant NUMBER_OF_LOOPS_FOR_FULL_INSTRUCTION: integer := 1 + INSTRUCTION_SIZE / WORD_BITS;
     subtype INTEGER_FOR_FULL_INSTRUCTION_TYPE is integer range NUMBER_OF_LOOPS_FOR_FULL_INSTRUCTION downto 0;
 
     type UNIT_STATE is
@@ -188,22 +188,17 @@ package CentralProcessingUnit_Package is
 
     type COMMIT_WRITE_WORD_TYPE is record
         word_value: CPU_INTEGER_TYPE;
-        ---------------------------------------------------------
-        -- First we need to read to words, and then write them.
-        -- This is because the address can be misaligned
-        -- to a word, so we need to retrieve the old
-        -- words in order to write them again correctly.
-        -- Normally, this isn't needed, but in case
-        -- of encryption/decryption, it is.
-        needs_read_first: boolean;
+        is_inside_read_phase: boolean;
     end record;
+
+    subtype WORD_BIT_BUFFER is BIT_VECTOR((WORD_BITS * 2) - 1 downto 0);
 
     type WORD_TO_COMMIT_TYPE is record
         mode: MEMORY_MODE_TYPE;
         address: CPU_ADDRESS_TYPE;
         read_type: COMMIT_READ_WORD_TYPE;
         write_type: COMMIT_WRITE_WORD_TYPE;
-        bit_buffer: BIT_VECTOR((MAX_WORD_BITS * 2) - 1 downto 0);
+        bit_buffer: WORD_BIT_BUFFER;
         bit_count: integer;
         bit_index: integer;
         bit_shift: integer;
@@ -252,7 +247,7 @@ package CentralProcessingUnit_Package is
     (
         signal commit_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal word_read: in WORD_TYPE;
+        signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
@@ -260,6 +255,8 @@ package CentralProcessingUnit_Package is
 
     procedure DecodeAndExecuteInstruction
     (
+        signal commit_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         word_to_commit: inout WORD_TO_COMMIT_TYPE;
@@ -578,7 +575,7 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE
     ) is
-        variable bit_shift: integer := to_integer(instruction_to_commit.address mod MAX_WORD_BITS);
+        variable bit_shift: integer := to_integer(instruction_to_commit.address mod WORD_BITS);
     begin
         instruction_to_commit.address := registers.special.program_counter;
         instruction_to_commit.bit_count := 0;
@@ -593,7 +590,7 @@ package body CentralProcessingUnit_Package is
     (
         signal commit_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal word_read: in WORD_TYPE;
+        signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
@@ -601,23 +598,23 @@ package body CentralProcessingUnit_Package is
     begin
         -- Wait for memory commit --
         if not commit_read_memory then
-            -- Store the bits inside a buffer, they will be decoded later --
-            instruction_to_commit.bit_buffer
-                ((instruction_to_commit.bit_index + MAX_WORD_BITS - 1) 
-                    downto instruction_to_commit.bit_index) := word_read;
-            instruction_to_commit.bit_index := instruction_to_commit.bit_index + MAX_WORD_BITS;
-
             -- TODO: Decrypt memory here --
 
+            -- Store the bits inside a buffer, they will be decoded later --
+            instruction_to_commit.bit_buffer
+                ((instruction_to_commit.bit_index + WORD_BITS - 1) 
+                    downto instruction_to_commit.bit_index) := memory_word_read;
+            instruction_to_commit.bit_index := instruction_to_commit.bit_index + WORD_BITS;
+
             ---------------------------------------------------------------------------------
-            -- Increment to MAX_WORD_BITS - shift,
+            -- Increment to WORD_BITS - shift,
             -- the shift is used so we're sure that we got the exact number of bits we want
             -- This is only needed the first time though
             if instruction_to_commit.bit_count = 0 then
                 instruction_to_commit.bit_count := instruction_to_commit.bit_count
-                    + (MAX_WORD_BITS - instruction_to_commit.bit_shift);
+                    + (WORD_BITS - instruction_to_commit.bit_shift);
             else
-                instruction_to_commit.bit_count := instruction_to_commit.bit_count + MAX_WORD_BITS;
+                instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_BITS;
             end if;
 
             -- Do we keep fetching ? --
@@ -630,11 +627,16 @@ package body CentralProcessingUnit_Package is
                 var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
                 signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
             end if;
+        else
+            -- Keep waiting for memory --
+            signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
         end if;
     end HandleFetchInstruction;
 
     procedure DecodeAndExecuteInstruction
     (
+        signal commit_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         word_to_commit: inout WORD_TO_COMMIT_TYPE;
@@ -645,7 +647,6 @@ package body CentralProcessingUnit_Package is
         variable decoded_instruction: INSTRUCTION;
         variable should_commit_memory: boolean := false;
     begin
-
         -- Decode instruction --
         encoded_instruction := instruction_to_commit.bit_buffer(
             (INSTRUCTION_SIZE + instruction_to_commit.bit_shift - 1) downto instruction_to_commit.bit_shift);
@@ -658,12 +659,19 @@ package body CentralProcessingUnit_Package is
         if should_commit_memory then
             word_to_commit.bit_count := 0;
             word_to_commit.bit_index := 0;
-            word_to_commit.bit_shift := 0;
-
-            if word_to_commit.mode = MEMORY_MODE_WRITE then
-                word_to_commit.write_type.needs_read_first := true;
-            end if;
-
+            word_to_commit.bit_shift := to_integer(word_to_commit.address mod WORD_BITS);
+            word_to_commit.write_type.is_inside_read_phase := true;
+            memory_address_read <= word_to_commit.address - word_to_commit.bit_shift;
+            --------------------------------------------------
+            -- Doesn't matter if it's a read or a write,
+            -- we always need to read first the word anyway.
+            -- This is because the address can be misaligned
+            -- to a word, so we need to retrieve the old
+            -- words in order to write them again correctly.
+            -- Normally, this isn't needed, but in case
+            -- of encryption/decryption, it is.
+            -- So it starts with reading memory anyway.
+            commit_read_memory <= true;
             signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
         -- Otherwise fetch again another instruction --
         else
@@ -671,6 +679,39 @@ package body CentralProcessingUnit_Package is
             signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
         end if;
     end DecodeAndExecuteInstruction;
+
+    -- Mostly same logic as HandleFetchInstruction --
+    procedure HandleFetchWord
+    (
+        signal commit_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        signal memory_word_read: in WORD_TYPE;
+        word_to_commit: inout WORD_TO_COMMIT_TYPE
+    ) is
+    begin
+        -- Has something been fetch yet ? --
+        if not commit_read_memory then
+            -- TODO: Decrypt memory here --
+
+            -- Gotcha, need to store into buffer --
+            word_to_commit.bit_buffer((word_to_commit.bit_index + WORD_BITS - 1) 
+                downto word_to_commit.bit_index) := memory_word_read;
+            word_to_commit.bit_index := word_to_commit.bit_index + WORD_BITS;
+
+            if word_to_commit.bit_count = 0 then
+                word_to_commit.bit_count := word_to_commit.bit_count
+                    + (WORD_BITS - word_to_commit.bit_shift);
+            else
+                word_to_commit.bit_count := word_to_commit.bit_count + WORD_BITS;
+            end if;
+
+            -- Do we keep fetching ? --
+            if word_to_commit.bit_count < WORD_BITS then
+                memory_address_read <= word_to_commit.address - word_to_commit.bit_shift + word_to_commit.bit_index;
+                commit_read_memory <= true;
+            end if;
+        end if;
+    end HandleFetchWord;
 
     procedure HandlePostExecution
     (
@@ -688,7 +729,62 @@ package body CentralProcessingUnit_Package is
     begin
         case word_to_commit.mode is
             when MEMORY_MODE_READ =>
+                    HandleFetchWord(commit_read_memory,
+                                    memory_address_read,
+                                    memory_word_read,
+                                    word_to_commit);
+                    if word_to_commit.bit_count >= WORD_BITS then
+                        -- Stop here and ask another instruction while setting the register --
+                        registers.general(to_integer(word_to_commit.read_type.register_index)) := CPU_INTEGER_TYPE(to_stdlogicvector(
+                            word_to_commit.bit_buffer((WORD_BITS + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)));
+                        var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
+                        signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
+                    else
+                        -- Keep reading memory --
+                        signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
+                    end if;
+
             when MEMORY_MODE_WRITE =>
+                if word_to_commit.write_type.is_inside_read_phase then
+                    HandleFetchWord(commit_read_memory,
+                                    memory_address_read,
+                                    memory_word_read,
+                                    word_to_commit);
+                    -- Do we still need to be in read phase ? --
+                    if word_to_commit.bit_count >= WORD_BITS then
+                        -- Then prepare the word to write --
+                        word_to_commit.bit_buffer((WORD_BITS + word_to_commit.bit_shift) downto word_to_commit.bit_shift)
+                            := to_bitvector(std_logic_vector(word_to_commit.write_type.word_value));
+                        word_to_commit.bit_index := WORD_BITS;
+                        memory_address_write <= word_to_commit.address - word_to_commit.bit_shift;
+                        -- TODO: encrypt bit_buffer here --
+                        memory_word_write <= word_to_commit.bit_buffer(WORD_BITS - 1 downto 0);
+                        commit_write_memory <= true;
+                        word_to_commit.write_type.is_inside_read_phase := false;
+                    end if;
+
+                    -- Keep commiting --
+                    signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
+                else
+                    if not commit_write_memory then
+                        if word_to_commit.bit_index < WORD_BIT_BUFFER'length then
+                            memory_address_write <= word_to_commit.address
+                                - word_to_commit.bit_shift + word_to_commit.bit_index;
+                            memory_word_write <= word_to_commit.bit_buffer((word_to_commit.bit_index + WORD_BITS - 1) 
+                                downto word_to_commit.bit_index);
+                            word_to_commit.bit_index := word_to_commit.bit_index + WORD_BITS;
+                            commit_write_memory <= true;
+                            signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
+                        else
+                            -- Return to ask another instruction --
+                            var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
+                            signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
+                        end if;
+                    else
+                        -- Keep commiting --
+                        signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
+                    end if;
+                end if;
         end case;
     end HandlePostExecution;
 

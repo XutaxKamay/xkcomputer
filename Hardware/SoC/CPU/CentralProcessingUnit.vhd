@@ -52,6 +52,7 @@ begin
             -- Do not wait for memory controller to set them to false --
             commit_read_memory <= false;
             commit_write_memory <= false;
+            var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
             -- Will trigger again a new process execution --
             signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
         end if;
@@ -73,8 +74,11 @@ begin
                                             var_registers,
                                             var_instruction_to_commit,
                                             signal_unit_state);
+
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
-                        DecodeAndExecuteInstruction(var_instruction_to_commit,
+                        DecodeAndExecuteInstruction(commit_read_memory,
+                                                    memory_address_read,
+                                                    var_instruction_to_commit,
                                                     var_registers,
                                                     var_word_to_commit,
                                                     signal_unit_state,
@@ -89,6 +93,7 @@ begin
                                                var_instruction_to_commit,
                                                signal_unit_state,
                                                var_instruction_phase);
+
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
                         HandlePostExecution(commit_read_memory,
                                             commit_write_memory,
