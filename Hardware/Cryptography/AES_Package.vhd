@@ -4,7 +4,8 @@ use ieee.numeric_std.all;
 
 package AES_Package is
 
-    subtype AES_256_INTEGER_TYPE is BIT_VECTOR(255 downto 0);
+    constant AES_INTEGER_BITS: integer := 256;
+    subtype AES_256_INTEGER_TYPE is BIT_VECTOR((AES_INTEGER_BITS - 1) downto 0);
 
     function Encrypt256Bits
     (

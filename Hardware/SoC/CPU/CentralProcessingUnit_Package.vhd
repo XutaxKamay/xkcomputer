@@ -1,6 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use work.AES_Package.all;
 
 package CentralProcessingUnit_Package is
 
@@ -11,10 +12,10 @@ package CentralProcessingUnit_Package is
     );
 
     -- 256 bits, ideal for AES and other encryption methods --
-    constant MAX_INTEGER_BITS: integer := 256;
+    constant INTEGER_BITS: integer := AES_INTEGER_BITS;
 
-    subtype ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS - 1) downto 0);
-    subtype MAX_ALU_INTEGER_IN_TYPE is signed((MAX_INTEGER_BITS * 2 - 1) downto 0);
+    subtype ALU_INTEGER_IN_TYPE is signed((INTEGER_BITS - 1) downto 0);
+    subtype MAX_ALU_INTEGER_IN_TYPE is signed((INTEGER_BITS * 2 - 1) downto 0);
     constant ALU_INTEGER_IN_TYPE_SIZE: integer := ALU_INTEGER_IN_TYPE'length;
 
     type ALU_INTEGER_OUT_TYPE is record
@@ -142,11 +143,12 @@ package CentralProcessingUnit_Package is
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_INDEX_TYPE_SIZE);
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
     
-    constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS: integer := INSTRUCTION_BIT_VECTOR'length 
-        + (CPU_INTEGER_TYPE_SIZE - INSTRUCTION_BIT_VECTOR'length mod CPU_INTEGER_TYPE_SIZE);
+    constant WORD_BITS: integer := CPU_INTEGER_TYPE_SIZE;
+    constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
+        + (WORD_BITS - INSTRUCTION_SIZE mod WORD_BITS);
 
-    subtype INSTRUCTION_TEMPORARY_FETCH_BIT_VECTOR is
-        BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS - 1) downto 0);
+    subtype INSTRUCTION_BIT_BUFFER is
+        BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION - 1) downto 0);
 
     -----------------------------------------------------------------
     -- DO NOT CHANGE THIS.
@@ -156,10 +158,9 @@ package CentralProcessingUnit_Package is
     -- memory word and write again another time,
     -- and we would loose some performance.
     -- Downside of this, we need 2~ loops for reading an instruction
-    constant WORD_BITS: integer := CPU_INTEGER_TYPE'length;
+    constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_WORD: integer := WORD_BITS
+        + (WORD_BITS - WORD_BITS mod WORD_BITS);
     subtype WORD_TYPE is BIT_VECTOR((WORD_BITS - 1) downto 0);
-    constant NUMBER_OF_LOOPS_FOR_FULL_INSTRUCTION: integer := 1 + INSTRUCTION_SIZE / WORD_BITS;
-    subtype INTEGER_FOR_FULL_INSTRUCTION_TYPE is integer range NUMBER_OF_LOOPS_FOR_FULL_INSTRUCTION downto 0;
 
     type UNIT_STATE is
     (
@@ -176,7 +177,7 @@ package CentralProcessingUnit_Package is
     -- Need specialized type for such fetchs --
     type COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE is record
         address: CPU_ADDRESS_TYPE;
-        bit_buffer: INSTRUCTION_TEMPORARY_FETCH_BIT_VECTOR;
+        bit_buffer: INSTRUCTION_BIT_BUFFER;
         bit_count: integer;
         bit_index: integer;
         bit_shift: integer;
@@ -191,7 +192,7 @@ package CentralProcessingUnit_Package is
         is_inside_read_phase: boolean;
     end record;
 
-    subtype WORD_BIT_BUFFER is BIT_VECTOR((WORD_BITS * 2) - 1 downto 0);
+    subtype WORD_BIT_BUFFER is BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_WORD - 1) downto 0);
 
     type WORD_TO_COMMIT_TYPE is record
         mode: MEMORY_MODE_TYPE;
@@ -598,8 +599,6 @@ package body CentralProcessingUnit_Package is
     begin
         -- Wait for memory commit --
         if not commit_read_memory then
-            -- TODO: Decrypt memory here --
-
             -- Store the bits inside a buffer, they will be decoded later --
             instruction_to_commit.bit_buffer
                 ((instruction_to_commit.bit_index + WORD_BITS - 1) 
@@ -618,11 +617,12 @@ package body CentralProcessingUnit_Package is
             end if;
 
             -- Do we keep fetching ? --
-            if instruction_to_commit.bit_count < INSTRUCTION_SIZE then
+            if instruction_to_commit.bit_count < INSTRUCTION_BIT_BUFFER'length then
                 memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
                 commit_read_memory <= true;
                 signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
             else
+                -- TODO: Decrypt memory here --
                 -- We fetched the whole instruction, trigger a new execution on instruction phase --
                 var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
                 signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
@@ -691,8 +691,6 @@ package body CentralProcessingUnit_Package is
     begin
         -- Has something been fetch yet ? --
         if not commit_read_memory then
-            -- TODO: Decrypt memory here --
-
             -- Gotcha, need to store into buffer --
             word_to_commit.bit_buffer((word_to_commit.bit_index + WORD_BITS - 1) 
                 downto word_to_commit.bit_index) := memory_word_read;
@@ -706,7 +704,7 @@ package body CentralProcessingUnit_Package is
             end if;
 
             -- Do we keep fetching ? --
-            if word_to_commit.bit_count < WORD_BITS then
+            if word_to_commit.bit_count < WORD_BIT_BUFFER'length then
                 memory_address_read <= word_to_commit.address - word_to_commit.bit_shift + word_to_commit.bit_index;
                 commit_read_memory <= true;
             end if;
@@ -733,7 +731,8 @@ package body CentralProcessingUnit_Package is
                                     memory_address_read,
                                     memory_word_read,
                                     word_to_commit);
-                    if word_to_commit.bit_count >= WORD_BITS then
+                    if word_to_commit.bit_count >= WORD_BIT_BUFFER'length then
+                        -- TODO: Decrypt memory here --
                         -- Stop here and ask another instruction while setting the register --
                         registers.general(to_integer(word_to_commit.read_type.register_index)) := CPU_INTEGER_TYPE(to_stdlogicvector(
                             word_to_commit.bit_buffer((WORD_BITS + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)));
@@ -751,13 +750,14 @@ package body CentralProcessingUnit_Package is
                                     memory_word_read,
                                     word_to_commit);
                     -- Do we still need to be in read phase ? --
-                    if word_to_commit.bit_count >= WORD_BITS then
+                    if word_to_commit.bit_count >= WORD_BIT_BUFFER'length then
+                        -- TODO: Decrypt bit_buffer here --
                         -- Then prepare the word to write --
                         word_to_commit.bit_buffer((WORD_BITS + word_to_commit.bit_shift) downto word_to_commit.bit_shift)
                             := to_bitvector(std_logic_vector(word_to_commit.write_type.word_value));
                         word_to_commit.bit_index := WORD_BITS;
                         memory_address_write <= word_to_commit.address - word_to_commit.bit_shift;
-                        -- TODO: encrypt bit_buffer here --
+                        -- TODO: Encrypt again bit_buffer here --
                         memory_word_write <= word_to_commit.bit_buffer(WORD_BITS - 1 downto 0);
                         commit_write_memory <= true;
                         word_to_commit.write_type.is_inside_read_phase := false;
