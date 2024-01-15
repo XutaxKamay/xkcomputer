@@ -22,7 +22,7 @@ package CentralProcessingUnit_Package is
     );
 
     subtype ALU_INTEGER_IN_TYPE is signed((INTEGER_SIZE - 1) downto 0);
-    subtype MAX_ADD_ALU_INTEGER_IN_TYPE is signed((INTEGER_SIZE - 1) downto 0);
+    subtype MAX_ADD_ALU_INTEGER_IN_TYPE is signed(INTEGER_SIZE downto 0);
     subtype MAX_MULTIPLY_ALU_INTEGER_IN_TYPE is signed(((INTEGER_SIZE * 2) - 1) downto 0);
     constant ALU_INTEGER_IN_TYPE_SIZE: integer := ALU_INTEGER_IN_TYPE'length;
 
@@ -300,11 +300,13 @@ package body CentralProcessingUnit_Package is
     begin
         case operation_type is
             when ALU_OPERATION_TYPE_ADD =>
-                temporary_add_resulting_integer := integer_in_left + integer_in_right;
+                temporary_add_resulting_integer := resize(integer_in_right, MAX_ADD_ALU_INTEGER_IN_TYPE'length);
+                temporary_add_resulting_integer := integer_in_left + temporary_add_resulting_integer;
                 temporary_resulting_integer_type := ALU_OPERATION_INTEGER_ADD;
 
             when ALU_OPERATION_TYPE_SUBTRACT =>
-                temporary_add_resulting_integer := integer_in_left - integer_in_right;
+                temporary_add_resulting_integer := resize(integer_in_right, MAX_ADD_ALU_INTEGER_IN_TYPE'length);
+                temporary_add_resulting_integer := integer_in_left - temporary_add_resulting_integer;
                 temporary_resulting_integer_type := ALU_OPERATION_INTEGER_ADD;
 
             when ALU_OPERATION_TYPE_DIVISION =>
