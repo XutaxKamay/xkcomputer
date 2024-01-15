@@ -12,7 +12,7 @@ package CentralProcessingUnit_Package is
     );
 
     -- 256 bits, ideal for AES and other encryption methods --
-    constant INTEGER_SIZE: integer := 256;
+    constant INTEGER_SIZE: integer := 8;
 
     subtype ALU_INTEGER_IN_TYPE is signed((INTEGER_SIZE - 1) downto 0);
     subtype MAX_ALU_INTEGER_IN_TYPE is signed(INTEGER_SIZE * 2 downto 0);
@@ -756,8 +756,7 @@ package body CentralProcessingUnit_Package is
                 else
                     if not commit_write_memory then
                         if word_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                            memory_address_write <= word_to_commit.address
-                                - word_to_commit.bit_shift + word_to_commit.bit_index;
+                            memory_address_write <= word_to_commit.address + word_to_commit.bit_index;
                             memory_word_write <= word_to_commit.bit_buffer((word_to_commit.bit_index + WORD_SIZE - 1) 
                                 downto word_to_commit.bit_index);
                             word_to_commit.bit_index := word_to_commit.bit_index + WORD_SIZE;
