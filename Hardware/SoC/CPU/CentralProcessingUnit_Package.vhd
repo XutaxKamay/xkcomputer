@@ -151,7 +151,7 @@ package CentralProcessingUnit_Package is
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_INDEX_TYPE_SIZE);
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
 
-    constant WORD_SIZE: integer := 8;
+    constant WORD_SIZE: integer := INTEGER_SIZE;
     subtype WORD_TYPE is BIT_VECTOR((WORD_SIZE - 1) downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
