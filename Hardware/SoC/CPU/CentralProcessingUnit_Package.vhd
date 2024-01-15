@@ -142,28 +142,16 @@ package CentralProcessingUnit_Package is
         + REGISTER_INDEX_TYPE_SIZE
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_INDEX_TYPE_SIZE);
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
-    
-    ---------------------------------------------------------------------
-    -- WARNING: WORD_SIZE should be always the same size of an integer --
-    ---------------------------------------------------------------------
-    constant WORD_SIZE: integer := CPU_INTEGER_TYPE_SIZE;
+
+    constant WORD_SIZE: integer := 8;
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
         + (WORD_SIZE - (INSTRUCTION_SIZE mod WORD_SIZE));
 
     subtype INSTRUCTION_BIT_BUFFER is
         BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION - 1) downto 0);
 
-    -----------------------------------------------------------------
-    -- WARNING:
-    -- DO NOT CHANGE THIS.
-    --
-    -- This is in order to make writes a lot easier to the memory
-    -- If this wasn't the case, we would have to read the old
-    -- memory word and write again another time,
-    -- and we would loose some performance.
-    -- Downside of this, we need 2~ loops for reading an instruction
-    constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_WORD: integer := WORD_SIZE
-        + (WORD_SIZE - WORD_SIZE mod WORD_SIZE);
+    constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER: integer := CPU_INTEGER_TYPE_SIZE
+        + (WORD_SIZE - (CPU_INTEGER_TYPE_SIZE mod WORD_SIZE));
     subtype WORD_TYPE is BIT_VECTOR((WORD_SIZE - 1) downto 0);
 
     type UNIT_STATE is
@@ -196,14 +184,14 @@ package CentralProcessingUnit_Package is
         is_inside_read_phase: boolean;
     end record;
 
-    subtype WORD_BIT_BUFFER is BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_WORD - 1) downto 0);
+    subtype INTEGER_BIT_BUFFER is BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER - 1) downto 0);
 
     type WORD_TO_COMMIT_TYPE is record
         mode: MEMORY_MODE_TYPE;
         address: CPU_ADDRESS_TYPE;
         read_type: COMMIT_READ_WORD_TYPE;
         write_type: COMMIT_WRITE_WORD_TYPE;
-        bit_buffer: WORD_BIT_BUFFER;
+        bit_buffer: INTEGER_BIT_BUFFER;
         bit_count: integer;
         bit_index: integer;
         bit_shift: integer;
@@ -613,11 +601,9 @@ package body CentralProcessingUnit_Package is
             -- Increment to WORD_SIZE - shift,
             -- the shift is used so we're sure that we got the exact number of bits we want
             -- This is only needed the first time though
+            instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_SIZE;
             if instruction_to_commit.bit_count = 0 then
-                instruction_to_commit.bit_count := instruction_to_commit.bit_count
-                    + (WORD_SIZE - instruction_to_commit.bit_shift);
-            else
-                instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_SIZE;
+                instruction_to_commit.bit_count := instruction_to_commit.bit_count - instruction_to_commit.bit_shift;
             end if;
 
             -- Do we keep fetching ? --
@@ -700,15 +686,14 @@ package body CentralProcessingUnit_Package is
                 downto word_to_commit.bit_index) := memory_word_read;
             word_to_commit.bit_index := word_to_commit.bit_index + WORD_SIZE;
 
+            word_to_commit.bit_count := word_to_commit.bit_count + WORD_SIZE;
+
             if word_to_commit.bit_count = 0 then
-                word_to_commit.bit_count := word_to_commit.bit_count
-                    + (WORD_SIZE - word_to_commit.bit_shift);
-            else
-                word_to_commit.bit_count := word_to_commit.bit_count + WORD_SIZE;
+                word_to_commit.bit_count := word_to_commit.bit_count - word_to_commit.bit_shift;
             end if;
 
             -- Do we keep fetching ? --
-            if word_to_commit.bit_count < WORD_BIT_BUFFER'length then
+            if word_to_commit.bit_count < INTEGER_BIT_BUFFER'length then
                 memory_address_read <= word_to_commit.address - word_to_commit.bit_shift + word_to_commit.bit_index;
                 commit_read_memory <= true;
             end if;
@@ -735,11 +720,11 @@ package body CentralProcessingUnit_Package is
                                     memory_address_read,
                                     memory_word_read,
                                     word_to_commit);
-                    if word_to_commit.bit_count >= WORD_BIT_BUFFER'length then
+                    if word_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
                         -- TODO: Decrypt memory here --
                         -- Stop here and ask another instruction while setting the register --
                         registers.general(to_integer(word_to_commit.read_type.register_index)) := CPU_INTEGER_TYPE(to_stdlogicvector(
-                            word_to_commit.bit_buffer((WORD_SIZE + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)));
+                            word_to_commit.bit_buffer((CPU_INTEGER_TYPE_SIZE + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)));
                         var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
                         signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
                     else
@@ -754,10 +739,10 @@ package body CentralProcessingUnit_Package is
                                     memory_word_read,
                                     word_to_commit);
                     -- Do we still need to be in read phase ? --
-                    if word_to_commit.bit_count >= WORD_BIT_BUFFER'length then
+                    if word_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
                         -- TODO: Decrypt bit_buffer here --
                         -- Then prepare the word to write --
-                        word_to_commit.bit_buffer((WORD_SIZE + word_to_commit.bit_shift) downto word_to_commit.bit_shift)
+                        word_to_commit.bit_buffer((CPU_INTEGER_TYPE_SIZE + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)
                             := to_bitvector(std_logic_vector(word_to_commit.write_type.word_value));
                         word_to_commit.bit_index := WORD_SIZE;
                         memory_address_write <= word_to_commit.address - word_to_commit.bit_shift;
@@ -771,7 +756,7 @@ package body CentralProcessingUnit_Package is
                     signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
                 else
                     if not commit_write_memory then
-                        if word_to_commit.bit_index < WORD_BIT_BUFFER'length then
+                        if word_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
                             memory_address_write <= word_to_commit.address
                                 - word_to_commit.bit_shift + word_to_commit.bit_index;
                             memory_word_write <= word_to_commit.bit_buffer((word_to_commit.bit_index + WORD_SIZE - 1) 
