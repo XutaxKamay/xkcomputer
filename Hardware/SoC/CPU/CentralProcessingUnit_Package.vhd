@@ -12,10 +12,18 @@ package CentralProcessingUnit_Package is
     );
 
     -- 256 bits, ideal for AES and other encryption methods --
-    constant INTEGER_SIZE: integer := 8;
+    constant INTEGER_SIZE: integer := 42;
+
+    type ALU_OPERATION_INTEGER_TYPE is
+    (
+        ALU_OPERATION_INTEGER_DEFAULT,
+        ALU_OPERATION_INTEGER_ADD,
+        ALU_OPERATION_INTEGER_MULTIPLY
+    );
 
     subtype ALU_INTEGER_IN_TYPE is signed((INTEGER_SIZE - 1) downto 0);
-    subtype MAX_ALU_INTEGER_IN_TYPE is signed(INTEGER_SIZE * 2 downto 0);
+    subtype MAX_ADD_ALU_INTEGER_IN_TYPE is signed((INTEGER_SIZE - 1) downto 0);
+    subtype MAX_MULTIPLY_ALU_INTEGER_IN_TYPE is signed(((INTEGER_SIZE * 2) - 1) downto 0);
     constant ALU_INTEGER_IN_TYPE_SIZE: integer := ALU_INTEGER_IN_TYPE'length;
 
     type ALU_INTEGER_OUT_TYPE is record
@@ -281,7 +289,10 @@ package body CentralProcessingUnit_Package is
     ) return ALU_INTEGER_OUT_TYPE is
 
     -- Store integer result, make it big enough for multiplication --
-    variable temporary_resulting_integer: MAX_ALU_INTEGER_IN_TYPE;
+    variable temporary_multiply_resulting_integer: MAX_MULTIPLY_ALU_INTEGER_IN_TYPE;
+    variable temporary_add_resulting_integer: MAX_ADD_ALU_INTEGER_IN_TYPE;
+    variable temporary_resulting_integer: ALU_INTEGER_IN_TYPE;
+    variable temporary_resulting_integer_type: ALU_OPERATION_INTEGER_TYPE := ALU_OPERATION_INTEGER_DEFAULT;
     variable division_by_zero: boolean := false;
     variable condition: boolean := false;
     variable integer_out: ALU_INTEGER_OUT_TYPE;
@@ -289,32 +300,35 @@ package body CentralProcessingUnit_Package is
     begin
         case operation_type is
             when ALU_OPERATION_TYPE_ADD =>
-                temporary_resulting_integer := resize(integer_in_left + integer_in_right, MAX_ALU_INTEGER_IN_TYPE'length);
+                temporary_add_resulting_integer := integer_in_left + integer_in_right;
+                temporary_resulting_integer_type := ALU_OPERATION_INTEGER_ADD;
 
             when ALU_OPERATION_TYPE_SUBTRACT =>
-                temporary_resulting_integer := resize(integer_in_left - integer_in_right, MAX_ALU_INTEGER_IN_TYPE'length);
+                temporary_add_resulting_integer := integer_in_left - integer_in_right;
+                temporary_resulting_integer_type := ALU_OPERATION_INTEGER_ADD;
 
             when ALU_OPERATION_TYPE_DIVISION =>
                 if integer_in_right = 0 then
                     division_by_zero := true;
                 else
-                    temporary_resulting_integer := resize(integer_in_left / integer_in_right, MAX_ALU_INTEGER_IN_TYPE'length);
+                    temporary_resulting_integer := integer_in_left / integer_in_right;
                 end if;
 
             when ALU_OPERATION_TYPE_MULTIPLY =>
-                temporary_resulting_integer := resize(integer_in_left * integer_in_right, MAX_ALU_INTEGER_IN_TYPE'length);
+                temporary_multiply_resulting_integer := integer_in_left * integer_in_right;
+                temporary_resulting_integer_type := ALU_OPERATION_INTEGER_MULTIPLY;
 
             when ALU_OPERATION_TYPE_OR =>
-                temporary_resulting_integer := resize(integer_in_left or integer_in_right, MAX_ALU_INTEGER_IN_TYPE'length);
+                temporary_resulting_integer := integer_in_left or integer_in_right;
 
             when ALU_OPERATION_TYPE_AND =>
-                temporary_resulting_integer := resize(integer_in_left and integer_in_right, MAX_ALU_INTEGER_IN_TYPE'length);
+                temporary_resulting_integer := integer_in_left and integer_in_right;
             
             when ALU_OPERATION_TYPE_SET =>
-                temporary_resulting_integer := resize(integer_in_right, MAX_ALU_INTEGER_IN_TYPE'length);
+                temporary_resulting_integer := integer_in_right;
 
             when ALU_OPERATION_TYPE_NOT =>
-                temporary_resulting_integer := resize(not integer_in_left, MAX_ALU_INTEGER_IN_TYPE'length);
+                temporary_resulting_integer := not integer_in_left;
 
             when ALU_OPERATION_TYPE_BIGGER =>
                 condition := integer_in_left > integer_in_right;
@@ -327,15 +341,38 @@ package body CentralProcessingUnit_Package is
         end case;
 
         -- Resize integer, even if it means to be an overflow --
-        integer_out.value := resize(temporary_resulting_integer, ALU_INTEGER_IN_TYPE_SIZE);
+        case temporary_resulting_integer_type is
+            when ALU_OPERATION_INTEGER_DEFAULT =>
+                integer_out.value := temporary_resulting_integer;
 
-        if temporary_resulting_integer > ALU_INTEGER_IN_TYPE'high
-            or temporary_resulting_integer < ALU_INTEGER_IN_TYPE'low
-            or division_by_zero then
-            integer_out.overflow := true;
-        else
-            integer_out.overflow := false;
-        end if;
+                if division_by_zero then
+                    integer_out.overflow := true;
+                else
+                    integer_out.overflow := false;
+                end if;
+
+            when ALU_OPERATION_INTEGER_ADD =>
+                integer_out.value := resize(temporary_add_resulting_integer, ALU_INTEGER_IN_TYPE_SIZE);
+
+                if temporary_add_resulting_integer > ALU_INTEGER_IN_TYPE'high
+                    or temporary_add_resulting_integer < ALU_INTEGER_IN_TYPE'low
+                    or division_by_zero then
+                    integer_out.overflow := true;
+                else
+                    integer_out.overflow := false;
+                end if;
+
+            when ALU_OPERATION_INTEGER_MULTIPLY =>
+                integer_out.value := resize(temporary_multiply_resulting_integer, ALU_INTEGER_IN_TYPE_SIZE);
+
+                if temporary_multiply_resulting_integer > ALU_INTEGER_IN_TYPE'high
+                    or temporary_multiply_resulting_integer < ALU_INTEGER_IN_TYPE'low
+                    or division_by_zero then
+                    integer_out.overflow := true;
+                else
+                    integer_out.overflow := false;
+                end if;
+        end case;
 
         integer_out.condition := condition;
 
