@@ -144,15 +144,16 @@ package CentralProcessingUnit_Package is
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
 
     constant WORD_SIZE: integer := 8;
+    subtype WORD_TYPE is BIT_VECTOR((WORD_SIZE - 1) downto 0);
+
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
         + (WORD_SIZE - (INSTRUCTION_SIZE mod WORD_SIZE));
-
     subtype INSTRUCTION_BIT_BUFFER is
         BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION - 1) downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER: integer := CPU_INTEGER_TYPE_SIZE
         + (WORD_SIZE - (CPU_INTEGER_TYPE_SIZE mod WORD_SIZE));
-    subtype WORD_TYPE is BIT_VECTOR((WORD_SIZE - 1) downto 0);
+    subtype INTEGER_BIT_BUFFER is BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER - 1) downto 0);
 
     type UNIT_STATE is
     (
@@ -183,8 +184,6 @@ package CentralProcessingUnit_Package is
         word_value: CPU_INTEGER_TYPE;
         is_inside_read_phase: boolean;
     end record;
-
-    subtype INTEGER_BIT_BUFFER is BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER - 1) downto 0);
 
     type WORD_TO_COMMIT_TYPE is record
         mode: MEMORY_MODE_TYPE;
