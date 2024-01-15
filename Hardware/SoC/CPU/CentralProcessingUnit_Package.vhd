@@ -12,7 +12,7 @@ package CentralProcessingUnit_Package is
     );
 
     -- 256 bits, ideal for AES and other encryption methods --
-    constant INTEGER_SIZE: integer := AES_256_INTEGER_SIZE;
+    constant INTEGER_SIZE: integer := 256;
 
     subtype ALU_INTEGER_IN_TYPE is signed((INTEGER_SIZE - 1) downto 0);
     subtype MAX_ALU_INTEGER_IN_TYPE is signed(INTEGER_SIZE * 2 downto 0);
@@ -148,7 +148,7 @@ package CentralProcessingUnit_Package is
     ---------------------------------------------------------------------
     constant WORD_SIZE: integer := CPU_INTEGER_TYPE_SIZE;
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
-        + (WORD_SIZE - INSTRUCTION_SIZE mod WORD_SIZE);
+        + (WORD_SIZE - (INSTRUCTION_SIZE mod WORD_SIZE));
 
     subtype INSTRUCTION_BIT_BUFFER is
         BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION - 1) downto 0);
