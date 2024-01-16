@@ -50,14 +50,6 @@ package CentralProcessingUnit_Package is
         ALU_OPERATION_TYPE_EQUAL
     );
 
-    ----------------------------------------
-    -- I don't think we're going to reach --
-    -- 2^512 bits of bit address space    --
-    ----------------------------------------
-    constant REAL_MEMORY_END_ADDRESS: integer := 2**20 - 1;
-    -- Will be used for I/O devices --
-    constant MMIO_ADDRESS_START: integer := REAL_MEMORY_END_ADDRESS + 1;
-
     subtype CPU_ADDRESS_TYPE is ALU_INTEGER_IN_TYPE;
     constant CPU_ADDRESS_TYPE_SIZE: integer := CPU_ADDRESS_TYPE'length;
 
@@ -151,7 +143,7 @@ package CentralProcessingUnit_Package is
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_INDEX_TYPE_SIZE);
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
 
-    constant WORD_SIZE: integer := INTEGER_SIZE;
+    constant WORD_SIZE: integer := 256;
     subtype WORD_TYPE is BIT_VECTOR((WORD_SIZE - 1) downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE

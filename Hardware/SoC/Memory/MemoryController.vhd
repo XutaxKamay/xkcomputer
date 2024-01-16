@@ -15,8 +15,16 @@ entity MemoryController is
     );
 end MemoryController;
 
-architecture MemoryController_Implementation of MemoryController is    
-    signal internal_memory: BIT_VECTOR(REAL_MEMORY_END_ADDRESS downto 0);
+architecture MemoryController_Implementation of MemoryController is
+    ----------------------------------------
+    -- I don't think we're going to reach --
+    -- 2^512 bits of bit address space    --
+    ----------------------------------------
+    constant REAL_MEMORY_END_ADDRESS: integer := 2**20 - 1;
+    -- Will be used for I/O devices --
+    constant MMIO_ADDRESS_START: integer := REAL_MEMORY_END_ADDRESS + 1;
+
+    signal internal_memory: BIT_VECTOR(REAL_MEMORY_END_ADDRESS downto 0) := (others => '0');
 begin
     process (commit_read_memory)
     begin
