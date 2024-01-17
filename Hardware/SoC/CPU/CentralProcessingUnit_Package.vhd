@@ -779,6 +779,8 @@ package body CentralProcessingUnit_Package is
                                     memory_address_read,
                                     memory_word_read,
                                     word_to_commit);
+
+                    -- Did we finish to get the word ? --
                     if word_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
                         -- Stop here and ask another instruction while setting the register --
                         registers.general(to_integer(word_to_commit.read_type.register_index)) := CPU_INTEGER_TYPE(to_stdlogicvector(
@@ -800,6 +802,7 @@ package body CentralProcessingUnit_Package is
                                     memory_address_read,
                                     memory_word_read,
                                     word_to_commit);
+
                     -- Do we still need to be in read phase ? --
                     if word_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
                         -- Then prepare the word to write --
@@ -819,6 +822,7 @@ package body CentralProcessingUnit_Package is
                     -- Keep commiting --
                     signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
                 else
+                    -- Check if we have commited memory --
                     if not commit_write_memory then
                         if word_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
                             memory_address_write <= word_to_commit.address + word_to_commit.bit_index;

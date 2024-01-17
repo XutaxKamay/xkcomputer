@@ -19,6 +19,7 @@ end CentralProcessingUnit;
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
 
     signal signal_reset_request: boolean;
+    signal signal_has_woke_up_once: boolean := false;
     signal signal_unit_state: UNIT_STATE := UNIT_STATE_INSTRUCTION_PHASE;
 
 begin
@@ -27,6 +28,9 @@ begin
     begin
         if reset then
             signal_reset_request <= true;
+            if not signal_has_woke_up_once then
+                signal_has_woke_up_once <= true;
+            end if;
         else
             signal_reset_request <= false;
         end if;
@@ -35,7 +39,7 @@ begin
     ----------------------------------------------------------------------------
     -- Handle control unit states
     -- Feedback loop based on signal_unit_state FSM
-    process (signal_reset_request, signal_unit_state)
+    process (signal_has_woke_up_once, signal_unit_state)
         variable var_registers: REGISTERS_RECORD;
         variable var_instruction_phase: INSTRUCTION_PHASE := INSTRUCTION_PHASE_FETCHING;
         variable var_instruction_to_commit: COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
