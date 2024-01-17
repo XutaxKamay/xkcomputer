@@ -12,7 +12,7 @@ package CentralProcessingUnit_Package is
     );
 
     -- 256 bits, ideal for AES and other encryption methods --
-    constant INTEGER_SIZE: integer := 42;
+    constant INTEGER_SIZE: integer := 24;
 
     type ALU_OPERATION_INTEGER_TYPE is
     (
@@ -143,7 +143,7 @@ package CentralProcessingUnit_Package is
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_INDEX_TYPE_SIZE);
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
 
-    constant WORD_SIZE: integer := 256;
+    constant WORD_SIZE: integer := 64;
     constant WORDS_TO_DECRYPT_FOR_TEA: integer := WORD_SIZE / 64;
 
     subtype WORD_TYPE is BIT_VECTOR((WORD_SIZE - 1) downto 0);
