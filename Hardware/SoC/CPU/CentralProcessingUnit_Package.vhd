@@ -1,6 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use work.TinyEncryptionAlgorithm.all;
 
 package CentralProcessingUnit_Package is
 
@@ -143,6 +144,8 @@ package CentralProcessingUnit_Package is
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
 
     constant WORD_SIZE: integer := 256;
+    constant WORDS_TO_DECRYPT_FOR_TEA: integer := WORD_SIZE / 64;
+
     subtype WORD_TYPE is BIT_VECTOR((WORD_SIZE - 1) downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
@@ -194,6 +197,19 @@ package CentralProcessingUnit_Package is
         bit_index: integer;
         bit_shift: integer;
     end record;
+
+    -- b392387fe1c4e11afb34f1ca52261c26 --
+    constant TEA_KEY: TEA_KEY_TYPE := (x"b392387f", x"e1c4e11a", x"fb34f1ca", x"52261c26");
+
+    procedure EncryptWord
+    (
+        word: inout WORD_TYPE
+    );
+
+    procedure DecryptWord
+    (
+        word: inout WORD_TYPE
+    );
 
     -- Function and procedures --
     function HandleALUOperations
@@ -642,6 +658,9 @@ package body CentralProcessingUnit_Package is
                 signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
             else
                 -- TODO: Decrypt memory here --
+                for i in 0 to ((INSTRUCTION_BIT_BUFFER'length / WORD_SIZE) - 1) loop
+                    DecryptWord(instruction_to_commit.bit_buffer(((i * WORD_SIZE + WORD_SIZE) - 1) downto (i * WORD_SIZE)));
+                end loop;
                 -- We fetched the whole instruction, trigger a new execution on instruction phase --
                 var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
                 signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
@@ -669,8 +688,14 @@ package body CentralProcessingUnit_Package is
         -- Decode instruction --
         encoded_instruction := instruction_to_commit.bit_buffer(
             (INSTRUCTION_SIZE + instruction_to_commit.bit_shift - 1) downto instruction_to_commit.bit_shift);
+
+        -- Do not leak information --
+        for i in 0 to ((INSTRUCTION_BIT_BUFFER'length / WORD_SIZE) - 1) loop
+            EncryptWord(instruction_to_commit.bit_buffer(((i * WORD_SIZE + WORD_SIZE) - 1) downto (i * WORD_SIZE)));
+        end loop;
+
         decoded_instruction := DecodeInstruction(encoded_instruction);
-        
+
         -- Execute instruction --
         ExecuteInstruction(decoded_instruction, registers, should_commit_memory, word_to_commit);
 
@@ -707,12 +732,17 @@ package body CentralProcessingUnit_Package is
         signal memory_word_read: in WORD_TYPE;
         word_to_commit: inout WORD_TO_COMMIT_TYPE
     ) is
+        variable word_read: WORD_TYPE;
     begin
         -- Has something been fetch yet ? --
         if not commit_read_memory then
+            -- TODO: Decrypt memory --
+            word_read := memory_word_read;
+            DecryptWord(word_read);
+
             -- Gotcha, need to store into buffer --
             word_to_commit.bit_buffer((word_to_commit.bit_index + WORD_SIZE - 1) 
-                downto word_to_commit.bit_index) := memory_word_read;
+                downto word_to_commit.bit_index) := word_read;
             word_to_commit.bit_index := word_to_commit.bit_index + WORD_SIZE;
 
             word_to_commit.bit_count := word_to_commit.bit_count + WORD_SIZE;
@@ -750,10 +780,13 @@ package body CentralProcessingUnit_Package is
                                     memory_word_read,
                                     word_to_commit);
                     if word_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
-                        -- TODO: Decrypt memory here --
                         -- Stop here and ask another instruction while setting the register --
                         registers.general(to_integer(word_to_commit.read_type.register_index)) := CPU_INTEGER_TYPE(to_stdlogicvector(
                             word_to_commit.bit_buffer((CPU_INTEGER_TYPE_SIZE + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)));
+                        -- Do not leak information --
+                        for i in 0 to ((INTEGER_BIT_BUFFER'length / WORD_SIZE) - 1) loop
+                            EncryptWord(word_to_commit.bit_buffer(((i * WORD_SIZE + WORD_SIZE) - 1) downto (i * WORD_SIZE)));
+                        end loop;
                         var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
                         signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
                     else
@@ -769,13 +802,15 @@ package body CentralProcessingUnit_Package is
                                     word_to_commit);
                     -- Do we still need to be in read phase ? --
                     if word_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
-                        -- TODO: Decrypt bit_buffer here --
                         -- Then prepare the word to write --
                         word_to_commit.bit_buffer((CPU_INTEGER_TYPE_SIZE + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)
                             := to_bitvector(std_logic_vector(word_to_commit.write_type.word_value));
                         word_to_commit.bit_index := WORD_SIZE;
                         memory_address_write <= word_to_commit.address - word_to_commit.bit_shift;
                         -- TODO: Encrypt again bit_buffer here --
+                        for i in 0 to ((INTEGER_BIT_BUFFER'length / WORD_SIZE) - 1) loop
+                            EncryptWord(word_to_commit.bit_buffer(((i * WORD_SIZE + WORD_SIZE) - 1) downto (i * WORD_SIZE)));
+                        end loop;
                         memory_word_write <= word_to_commit.bit_buffer(WORD_SIZE - 1 downto 0);
                         commit_write_memory <= true;
                         word_to_commit.write_type.is_inside_read_phase := false;
@@ -804,5 +839,25 @@ package body CentralProcessingUnit_Package is
                 end if;
         end case;
     end HandlePostExecution;
+
+    procedure EncryptWord
+    (
+        word: inout WORD_TYPE
+    ) is
+    begin
+        for i in 0 to (WORDS_TO_DECRYPT_FOR_TEA - 1) loop
+            TEAEncrypt(TEA_KEY, word(((i * 64) + 63) downto (i * 64)));
+        end loop;
+    end EncryptWord;
+
+    procedure DecryptWord
+    (
+        word: inout WORD_TYPE
+    ) is
+    begin
+        for i in 0 to (WORDS_TO_DECRYPT_FOR_TEA - 1) loop
+            TEADecrypt(TEA_KEY, word(((i * 64) + 63) downto (i * 64)));
+        end loop;
+    end DecryptWord;
 
 end CentralProcessingUnit_Package;

@@ -13,23 +13,35 @@ package TinyEncryptionAlgorithm is
 
     constant MAGIC_DELTA_NUMBER: TEA_INTEGER_TYPE := x"9E3779B9";
 
-    procedure Encrypt
+    procedure TEAEncrypt
     (
         tea_key: in TEA_KEY_TYPE; 
         tea_integers: inout TEA_INTEGERS_TYPE
     );
 
-    procedure Decrypt
+    procedure TEADecrypt
     (
         tea_key: in TEA_KEY_TYPE; 
         tea_integers: inout TEA_INTEGERS_TYPE
+    );
+
+    procedure TEAEncrypt
+    (
+        tea_key: in TEA_KEY_TYPE; 
+        tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
+    );
+
+    procedure TEADecrypt
+    (
+        tea_key: in TEA_KEY_TYPE; 
+        tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
     );
 
 end TinyEncryptionAlgorithm;
 
 package body TinyEncryptionAlgorithm is
 
-    procedure Encrypt
+    procedure TEAEncrypt
     (
         tea_key: in TEA_KEY_TYPE; 
         tea_integers: inout TEA_INTEGERS_TYPE
@@ -49,7 +61,7 @@ package body TinyEncryptionAlgorithm is
         end loop;
     end;
 
-    procedure Decrypt
+    procedure TEADecrypt
     (
         tea_key: in TEA_KEY_TYPE; 
         tea_integers: inout TEA_INTEGERS_TYPE
@@ -67,6 +79,38 @@ package body TinyEncryptionAlgorithm is
             v0 := v0 - ((shift_left(v1, 4) + k0) xor (v1 + sum) xor (shift_right(v1, 5) + k1));
             sum := sum - MAGIC_DELTA_NUMBER;
         end loop;
+    end;
+
+    procedure TEAEncrypt
+    (
+        tea_key: in TEA_KEY_TYPE; 
+        tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
+    ) is
+        variable tea_integers: TEA_INTEGERS_TYPE := 
+        (
+            TEA_INTEGER_TYPE(to_stdlogicvector(tea_integers_bit_vec(31 downto 0))),
+            TEA_INTEGER_TYPE(to_stdlogicvector(tea_integers_bit_vec(63 downto 32)))
+        );
+    begin
+        TEAEncrypt(tea_key, tea_integers);
+        tea_integers_bit_vec(31 downto 0) := to_bitvector(std_logic_vector(tea_integers(0)));
+        tea_integers_bit_vec(63 downto 32) := to_bitvector(std_logic_vector(tea_integers(1)));
+    end;
+
+    procedure TEADecrypt
+    (
+        tea_key: in TEA_KEY_TYPE; 
+        tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
+    ) is
+        variable tea_integers: TEA_INTEGERS_TYPE := 
+        (
+            TEA_INTEGER_TYPE(to_stdlogicvector(tea_integers_bit_vec(31 downto 0))),
+            TEA_INTEGER_TYPE(to_stdlogicvector(tea_integers_bit_vec(63 downto 32)))
+        );
+    begin
+        TEAEncrypt(tea_key, tea_integers);
+        tea_integers_bit_vec(31 downto 0) := to_bitvector(std_logic_vector(tea_integers(0)));
+        tea_integers_bit_vec(63 downto 32) := to_bitvector(std_logic_vector(tea_integers(1)));
     end;
 
 end TinyEncryptionAlgorithm;
