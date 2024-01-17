@@ -30,7 +30,7 @@ begin
     begin
        if commit_read_memory then
             if memory_address_read + WORD_SIZE - 1 < MMIO_ADDRESS_START then
-                for i in 0 to WORD_SIZE - 1 loop
+                for i in 0 to (WORD_SIZE - 1) loop
                     memory_word_read(i) <= internal_memory(to_integer(memory_address_read) + i);
                 end loop;
             end if;
@@ -43,7 +43,7 @@ begin
     begin
        if commit_write_memory then
             if memory_address_write + WORD_SIZE - 1 < MMIO_ADDRESS_START then
-                for i in 0 to WORD_SIZE - 1 loop
+                for i in 0 to (WORD_SIZE - 1) loop
                     internal_memory(to_integer(memory_address_write) + i) <= memory_word_write(i);
                 end loop;
             end if;
