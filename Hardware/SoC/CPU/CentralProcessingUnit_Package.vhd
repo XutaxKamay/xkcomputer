@@ -5,6 +5,18 @@ use work.TinyEncryptionAlgorithm.all;
 
 package CentralProcessingUnit_Package is
 
+    type UNIT_STATE is
+    (
+        UNIT_STATE_INSTRUCTION_PHASE,
+        UNIT_STATE_COMMITING_MEMORY
+    );
+
+    type INSTRUCTION_PHASE is
+    (
+        INSTRUCTION_PHASE_FETCHING,
+        INSTRUCTION_PHASE_DECODE_AND_EXECUTE
+    );
+
     type MEMORY_MODE_TYPE is
     ( 
         MEMORY_MODE_READ,
@@ -21,9 +33,9 @@ package CentralProcessingUnit_Package is
         ALU_OPERATION_INTEGER_MULTIPLY
     );
 
-    subtype ALU_INTEGER_IN_TYPE is signed((INTEGER_SIZE - 1) downto 0);
+    subtype ALU_INTEGER_IN_TYPE is signed(INTEGER_SIZE - 1 downto 0);
     subtype MAX_ADD_ALU_INTEGER_IN_TYPE is signed(INTEGER_SIZE downto 0);
-    subtype MAX_MULTIPLY_ALU_INTEGER_IN_TYPE is signed(((INTEGER_SIZE * 2) - 1) downto 0);
+    subtype MAX_MULTIPLY_ALU_INTEGER_IN_TYPE is signed(INTEGER_SIZE * 2 - 1 downto 0);
     constant ALU_INTEGER_IN_TYPE_SIZE: integer := ALU_INTEGER_IN_TYPE'length;
 
     type ALU_INTEGER_OUT_TYPE is record
@@ -90,7 +102,7 @@ package CentralProcessingUnit_Package is
     -- 16 registers is way more than enough --
     subtype REGISTER_INDEX_TYPE is unsigned(3 downto 0);
     constant REGISTER_INDEX_TYPE_SIZE: integer := REGISTER_INDEX_TYPE'length;
-    type REGISTER_ARRAY is array((REGISTER_INDEX_TYPE'high - 1) downto 0) of CPU_INTEGER_TYPE;
+    type REGISTER_ARRAY is array(REGISTER_INDEX_TYPE'high - 1 downto 0) of CPU_INTEGER_TYPE;
 
     type SPECIAL_REGISTERS is record
         overflow_flag: boolean;
@@ -141,33 +153,20 @@ package CentralProcessingUnit_Package is
     constant INSTRUCTION_SIZE: integer := OPCODE_TYPE_SIZE
         + REGISTER_INDEX_TYPE_SIZE
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_INDEX_TYPE_SIZE);
-    subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR((INSTRUCTION_SIZE - 1) downto 0);
+    subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR(INSTRUCTION_SIZE - 1 downto 0);
 
     constant WORD_SIZE: integer := 64;
     constant WORDS_TO_DECRYPT_FOR_TEA: integer := WORD_SIZE / 64;
-
-    subtype WORD_TYPE is BIT_VECTOR((WORD_SIZE - 1) downto 0);
+    subtype WORD_TYPE is BIT_VECTOR(WORD_SIZE - 1 downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
         + (WORD_SIZE - (INSTRUCTION_SIZE mod WORD_SIZE));
     subtype INSTRUCTION_BIT_BUFFER is
-        BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION - 1) downto 0);
+        BIT_VECTOR(AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION - 1 downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER: integer := CPU_INTEGER_TYPE_SIZE
         + (WORD_SIZE - (CPU_INTEGER_TYPE_SIZE mod WORD_SIZE));
-    subtype INTEGER_BIT_BUFFER is BIT_VECTOR((AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER - 1) downto 0);
-
-    type UNIT_STATE is
-    (
-        UNIT_STATE_INSTRUCTION_PHASE,
-        UNIT_STATE_COMMITING_MEMORY
-    );
-
-    type INSTRUCTION_PHASE is
-    (
-        INSTRUCTION_PHASE_FETCHING,
-        INSTRUCTION_PHASE_DECODE_AND_EXECUTE
-    );
+    subtype INTEGER_BIT_BUFFER is BIT_VECTOR(AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER - 1 downto 0);
 
     -- Need specialized type for such fetchs --
     type COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE is record
@@ -183,11 +182,11 @@ package CentralProcessingUnit_Package is
     end record;
 
     type COMMIT_WRITE_WORD_TYPE is record
-        word_value: CPU_INTEGER_TYPE;
+        integer_value: CPU_INTEGER_TYPE;
         is_inside_read_phase: boolean;
     end record;
 
-    type WORD_TO_COMMIT_TYPE is record
+    type INTEGER_TO_COMMIT_TYPE is record
         mode: MEMORY_MODE_TYPE;
         address: CPU_ADDRESS_TYPE;
         read_type: COMMIT_READ_WORD_TYPE;
@@ -225,7 +224,7 @@ package CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     );
 
     function DecodeInstruction
@@ -238,7 +237,7 @@ package CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     );
 
     procedure AskFetchInstruction
@@ -266,7 +265,7 @@ package CentralProcessingUnit_Package is
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE;
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
     );
@@ -279,7 +278,7 @@ package CentralProcessingUnit_Package is
         signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         signal memory_word_write: out WORD_TYPE;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE;
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
@@ -394,45 +393,50 @@ package body CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     ) is
+        variable register_left_index: integer;
+        variable register_right_index: integer;
     begin
         should_commit_memory := true;
-        word_to_commit.mode := mode;
+        integer_to_commit.mode := mode;
+
+        register_left_index := to_integer(decoded_instruction.operand_left.register_index);
+        register_right_index := to_integer(decoded_instruction.operand_right.register_index);
 
         case decoded_instruction.operand_right.mode is
             when OPERAND_REGISTER =>
                 case mode is
                     -- read reg1, reg2 --
                     when MEMORY_MODE_READ =>
-                        word_to_commit.address
-                            := registers.general(to_integer(decoded_instruction.operand_right.register_index));
-                        word_to_commit.read_type.register_index
+                        integer_to_commit.address
+                            := registers.general(register_right_index);
+                        integer_to_commit.read_type.register_index
                             := decoded_instruction.operand_left.register_index;
 
                     -- write reg1, reg2 --
                     when MEMORY_MODE_WRITE =>
-                        word_to_commit.address
-                            := registers.general(to_integer(decoded_instruction.operand_right.register_index));
-                        word_to_commit.write_type.word_value
-                            := registers.general(to_integer(decoded_instruction.operand_left.register_index));
+                        integer_to_commit.address
+                            := registers.general(register_right_index);
+                        integer_to_commit.write_type.integer_value
+                            := registers.general(register_left_index);
                 end case;
 
             when OPERAND_INTEGER =>
                 case mode is
                     -- read reg1, address --
                     when MEMORY_MODE_READ =>
-                        word_to_commit.address
+                        integer_to_commit.address
                             := decoded_instruction.operand_right.integer_value;
-                        word_to_commit.read_type.register_index
+                        integer_to_commit.read_type.register_index
                             := decoded_instruction.operand_left.register_index;
 
                     -- write reg1, address --
                     when MEMORY_MODE_WRITE =>
-                        word_to_commit.address
+                        integer_to_commit.address
                             := decoded_instruction.operand_right.integer_value;
-                        word_to_commit.write_type.word_value
-                            := registers.general(to_integer(decoded_instruction.operand_left.register_index));
+                        integer_to_commit.write_type.integer_value
+                            := registers.general(register_left_index);
                 end case;
         end case;
     end;
@@ -446,22 +450,22 @@ package body CentralProcessingUnit_Package is
     variable count_bits: integer := 0;
 
     begin
-        decoded_instruction.opcode := instruction_in_bits((count_bits + (OPCODE_TYPE_SIZE - 1)) downto count_bits);
+        decoded_instruction.opcode := instruction_in_bits(count_bits + OPCODE_TYPE_SIZE - 1 downto count_bits);
         count_bits := count_bits + OPCODE_TYPE_SIZE;
 
         decoded_instruction.operand_left.register_index := REGISTER_INDEX_TYPE(
-            to_stdlogicvector(instruction_in_bits((count_bits + (REGISTER_INDEX_TYPE_SIZE - 1)) downto count_bits)));
+            to_stdlogicvector(instruction_in_bits(count_bits + REGISTER_INDEX_TYPE_SIZE - 1 downto count_bits)));
         count_bits := count_bits + REGISTER_INDEX_TYPE_SIZE;
         
         decoded_instruction.operand_right.mode := instruction_in_bits(count_bits);
         count_bits := count_bits + OPERAND_TYPE_SIZE;
 
         decoded_instruction.operand_right.register_index := REGISTER_INDEX_TYPE(
-            to_stdlogicvector(instruction_in_bits((count_bits + (REGISTER_INDEX_TYPE_SIZE - 1)) downto count_bits)));
+            to_stdlogicvector(instruction_in_bits(count_bits + REGISTER_INDEX_TYPE_SIZE - 1 downto count_bits)));
         count_bits := count_bits + REGISTER_INDEX_TYPE_SIZE;
 
         decoded_instruction.operand_right.integer_value := CPU_INTEGER_TYPE(
-            to_stdlogicvector(instruction_in_bits((count_bits + (CPU_INTEGER_TYPE_SIZE - 1)) downto count_bits)));
+            to_stdlogicvector(instruction_in_bits(count_bits + CPU_INTEGER_TYPE_SIZE - 1 downto count_bits)));
         count_bits := count_bits + CPU_INTEGER_TYPE_SIZE;
 
         return decoded_instruction;
@@ -472,7 +476,7 @@ package body CentralProcessingUnit_Package is
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
         should_commit_memory: inout boolean;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     ) is
 
         variable alu_integer_out: ALU_INTEGER_OUT_TYPE;
@@ -480,8 +484,13 @@ package body CentralProcessingUnit_Package is
         variable is_alu_operation_type: boolean := false;
         variable is_alu_operation_condition_flag_type: boolean := false;
         variable is_jumping: boolean := false;
+        variable register_left_index: integer;
+        variable register_right_index: integer;
 
     begin
+        register_left_index := to_integer(decoded_instruction.operand_left.register_index);
+        register_right_index := to_integer(decoded_instruction.operand_right.register_index);
+
         case decoded_instruction.opcode is
             when OPCODE_TYPE_SET =>
                 operation_type := ALU_OPERATION_TYPE_SET;
@@ -520,14 +529,14 @@ package body CentralProcessingUnit_Package is
                                        decoded_instruction,
                                        registers,
                                        should_commit_memory,
-                                       word_to_commit);
+                                       integer_to_commit);
 
             when OPCODE_TYPE_WRITE =>
                 HandleMemoryOperations(MEMORY_MODE_WRITE,
                                        decoded_instruction,
                                        registers,
                                        should_commit_memory,
-                                       word_to_commit);
+                                       integer_to_commit);
 
             when OPCODE_TYPE_IS_BIGGER =>
                 operation_type := ALU_OPERATION_TYPE_BIGGER;
@@ -552,8 +561,8 @@ package body CentralProcessingUnit_Package is
             -- In case of a simple jump, take the left register
             -- TODO: figure out what to do with the right one
             when OPCODE_TYPE_JUMP =>
-                registers.special.program_counter := registers.general(
-                    to_integer(decoded_instruction.operand_left.register_index));
+                registers.special.program_counter := registers.general(register_left_index);
+                -- We're jumping --
                 is_jumping := true;
 
             -----------------------------------------------------------------
@@ -561,12 +570,11 @@ package body CentralProcessingUnit_Package is
             -- TODO: figure out what to do with the right integer.
             when OPCODE_TYPE_BRANCH =>
                 if registers.special.condition_flag then
-                    registers.special.program_counter := registers.general(
-                        to_integer(decoded_instruction.operand_left.register_index));
+                    registers.special.program_counter := registers.general(register_left_index);
                 else
-                    registers.special.program_counter := registers.general(
-                        to_integer(decoded_instruction.operand_right.register_index));
+                    registers.special.program_counter := registers.general(register_right_index);
                 end if;
+                -- We're jumping --
                 is_jumping := true;
         end case;
 
@@ -575,18 +583,17 @@ package body CentralProcessingUnit_Package is
                 -- opcode register1, register2 --
                 when OPERAND_REGISTER =>
                     alu_integer_out := HandleALUOperations(operation_type,
-                                                           ALU_INTEGER_IN_TYPE(registers.general(
-                                                            to_integer(decoded_instruction.operand_left.register_index))),
-                                                           ALU_INTEGER_IN_TYPE(registers.general(
-                                                            to_integer(decoded_instruction.operand_right.register_index))));
-                    registers.general(to_integer(decoded_instruction.operand_left.register_index)) := CPU_INTEGER_TYPE(alu_integer_out.value);
+                                                           ALU_INTEGER_IN_TYPE(registers.general(register_left_index)),
+                                                           ALU_INTEGER_IN_TYPE(registers.general(register_right_index)));
+                    registers.general(register_left_index)
+                        := CPU_INTEGER_TYPE(alu_integer_out.value);
                 -- opcode register1, integer --
                 when OPERAND_INTEGER =>
                     alu_integer_out := HandleALUOperations(operation_type,
-                                                           ALU_INTEGER_IN_TYPE(registers.general(
-                                                            to_integer(decoded_instruction.operand_left.register_index))),
+                                                           ALU_INTEGER_IN_TYPE(registers.general(register_left_index)),
                                                            ALU_INTEGER_IN_TYPE(decoded_instruction.operand_right.integer_value));
-                    registers.general(to_integer(decoded_instruction.operand_left.register_index)) := CPU_INTEGER_TYPE(alu_integer_out.value);
+                    registers.general(register_left_index)
+                        := CPU_INTEGER_TYPE(alu_integer_out.value);
             end case;
 
             -- Assign overflow flag --
@@ -638,8 +645,11 @@ package body CentralProcessingUnit_Package is
         if not commit_read_memory then
             -- Store the bits inside a buffer, they will be decoded later --
             instruction_to_commit.bit_buffer
-                ((instruction_to_commit.bit_index + WORD_SIZE - 1) 
-                    downto instruction_to_commit.bit_index) := memory_word_read;
+            (
+                instruction_to_commit.bit_index + WORD_SIZE - 1
+                    downto instruction_to_commit.bit_index
+            ) := memory_word_read;
+
             instruction_to_commit.bit_index := instruction_to_commit.bit_index + WORD_SIZE;
 
             ---------------------------------------------------------------------------------
@@ -647,20 +657,23 @@ package body CentralProcessingUnit_Package is
             -- the shift is used so we're sure that we got the exact number of bits we want
             -- This is only needed the first time though
             instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_SIZE;
+
             if instruction_to_commit.bit_count = 0 then
                 instruction_to_commit.bit_count := instruction_to_commit.bit_count - instruction_to_commit.bit_shift;
             end if;
 
             -- Do we keep fetching ? --
             if instruction_to_commit.bit_count < INSTRUCTION_BIT_BUFFER'length then
-                memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
+                memory_address_read <= instruction_to_commit.address 
+                    - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
                 commit_read_memory <= true;
                 signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
             else
                 -- TODO: Decrypt memory here --
-                for i in 0 to ((INSTRUCTION_BIT_BUFFER'length / WORD_SIZE) - 1) loop
-                    DecryptWord(instruction_to_commit.bit_buffer(((i * WORD_SIZE + WORD_SIZE) - 1) downto (i * WORD_SIZE)));
+                for i in 0 to INSTRUCTION_BIT_BUFFER'length / WORD_SIZE - 1 loop
+                    DecryptWord(instruction_to_commit.bit_buffer(i * WORD_SIZE + WORD_SIZE - 1 downto i * WORD_SIZE));
                 end loop;
+
                 -- We fetched the whole instruction, trigger a new execution on instruction phase --
                 var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
                 signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
@@ -677,7 +690,7 @@ package body CentralProcessingUnit_Package is
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE;
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
     ) is
@@ -687,25 +700,27 @@ package body CentralProcessingUnit_Package is
     begin
         -- Decode instruction --
         encoded_instruction := instruction_to_commit.bit_buffer(
-            (INSTRUCTION_SIZE + instruction_to_commit.bit_shift - 1) downto instruction_to_commit.bit_shift);
+            INSTRUCTION_SIZE + instruction_to_commit.bit_shift - 1
+                downto instruction_to_commit.bit_shift
+        );
 
         -- Do not leak information --
-        for i in 0 to ((INSTRUCTION_BIT_BUFFER'length / WORD_SIZE) - 1) loop
-            EncryptWord(instruction_to_commit.bit_buffer(((i * WORD_SIZE + WORD_SIZE) - 1) downto (i * WORD_SIZE)));
+        for i in 0 to INSTRUCTION_BIT_BUFFER'length / WORD_SIZE - 1 loop
+            EncryptWord(instruction_to_commit.bit_buffer(i * WORD_SIZE + WORD_SIZE - 1 downto i * WORD_SIZE));
         end loop;
 
         decoded_instruction := DecodeInstruction(encoded_instruction);
 
         -- Execute instruction --
-        ExecuteInstruction(decoded_instruction, registers, should_commit_memory, word_to_commit);
+        ExecuteInstruction(decoded_instruction, registers, should_commit_memory, integer_to_commit);
 
         -- Should we commit memory before going on another instruction ? --
         if should_commit_memory then
-            word_to_commit.bit_count := 0;
-            word_to_commit.bit_index := 0;
-            word_to_commit.bit_shift := to_integer(word_to_commit.address mod WORD_SIZE);
-            word_to_commit.write_type.is_inside_read_phase := true;
-            memory_address_read <= word_to_commit.address - word_to_commit.bit_shift;
+            integer_to_commit.bit_count := 0;
+            integer_to_commit.bit_index := 0;
+            integer_to_commit.bit_shift := to_integer(integer_to_commit.address mod WORD_SIZE);
+            integer_to_commit.write_type.is_inside_read_phase := true;
+            memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift;
             --------------------------------------------------
             -- Doesn't matter if it's a read or a write,
             -- we always need to read first the word anyway.
@@ -730,7 +745,7 @@ package body CentralProcessingUnit_Package is
         signal commit_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     ) is
         variable word_read: WORD_TYPE;
     begin
@@ -741,19 +756,20 @@ package body CentralProcessingUnit_Package is
             DecryptWord(word_read);
 
             -- Gotcha, need to store into buffer --
-            word_to_commit.bit_buffer((word_to_commit.bit_index + WORD_SIZE - 1) 
-                downto word_to_commit.bit_index) := word_read;
-            word_to_commit.bit_index := word_to_commit.bit_index + WORD_SIZE;
+            integer_to_commit.bit_buffer(
+                integer_to_commit.bit_index + WORD_SIZE - 1 downto integer_to_commit.bit_index
+            ) := word_read;
 
-            word_to_commit.bit_count := word_to_commit.bit_count + WORD_SIZE;
+            integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
+            integer_to_commit.bit_count := integer_to_commit.bit_count + WORD_SIZE;
 
-            if word_to_commit.bit_count = 0 then
-                word_to_commit.bit_count := word_to_commit.bit_count - word_to_commit.bit_shift;
+            if integer_to_commit.bit_count = 0 then
+                integer_to_commit.bit_count := integer_to_commit.bit_count - integer_to_commit.bit_shift;
             end if;
 
             -- Do we keep fetching ? --
-            if word_to_commit.bit_count < INTEGER_BIT_BUFFER'length then
-                memory_address_read <= word_to_commit.address - word_to_commit.bit_shift + word_to_commit.bit_index;
+            if integer_to_commit.bit_count < INTEGER_BIT_BUFFER'length then
+                memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
                 commit_read_memory <= true;
             end if;
         end if;
@@ -767,28 +783,37 @@ package body CentralProcessingUnit_Package is
         signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         signal memory_word_write: out WORD_TYPE;
-        word_to_commit: inout WORD_TO_COMMIT_TYPE;
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
         signal signal_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
     ) is
     begin
-        case word_to_commit.mode is
+        case integer_to_commit.mode is
             when MEMORY_MODE_READ =>
                     HandleFetchWord(commit_read_memory,
                                     memory_address_read,
                                     memory_word_read,
-                                    word_to_commit);
+                                    integer_to_commit);
 
                     -- Did we finish to get the word ? --
-                    if word_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
+                    if integer_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
                         -- Stop here and ask another instruction while setting the register --
-                        registers.general(to_integer(word_to_commit.read_type.register_index)) := CPU_INTEGER_TYPE(to_stdlogicvector(
-                            word_to_commit.bit_buffer((CPU_INTEGER_TYPE_SIZE + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)));
+                        registers.general(to_integer(integer_to_commit.read_type.register_index)) :=
+                        CPU_INTEGER_TYPE(
+                            to_stdlogicvector(
+                                integer_to_commit.bit_buffer(
+                                    CPU_INTEGER_TYPE_SIZE + integer_to_commit.bit_shift - 1
+                                        downto integer_to_commit.bit_shift
+                                )
+                            )
+                        );
+
                         -- Do not leak information --
-                        for i in 0 to ((INTEGER_BIT_BUFFER'length / WORD_SIZE) - 1) loop
-                            EncryptWord(word_to_commit.bit_buffer(((i * WORD_SIZE + WORD_SIZE) - 1) downto (i * WORD_SIZE)));
+                        for i in 0 to INTEGER_BIT_BUFFER'length / WORD_SIZE - 1 loop
+                            EncryptWord(integer_to_commit.bit_buffer(i * WORD_SIZE + WORD_SIZE - 1 downto i * WORD_SIZE));
                         end loop;
+
                         var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
                         signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
                     else
@@ -797,26 +822,30 @@ package body CentralProcessingUnit_Package is
                     end if;
 
             when MEMORY_MODE_WRITE =>
-                if word_to_commit.write_type.is_inside_read_phase then
+                if integer_to_commit.write_type.is_inside_read_phase then
                     HandleFetchWord(commit_read_memory,
                                     memory_address_read,
                                     memory_word_read,
-                                    word_to_commit);
+                                    integer_to_commit);
 
                     -- Do we still need to be in read phase ? --
-                    if word_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
-                        -- Then prepare the word to write --
-                        word_to_commit.bit_buffer((CPU_INTEGER_TYPE_SIZE + word_to_commit.bit_shift - 1) downto word_to_commit.bit_shift)
-                            := to_bitvector(std_logic_vector(word_to_commit.write_type.word_value));
-                        word_to_commit.bit_index := WORD_SIZE;
-                        memory_address_write <= word_to_commit.address - word_to_commit.bit_shift;
+                    if integer_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
+                        -- Then prepare the integer to write --
+                        integer_to_commit.bit_buffer(
+                            CPU_ADDRESS_TYPE_SIZE + integer_to_commit.bit_shift - 1
+                                downto integer_to_commit.bit_shift
+                        ) := to_bitvector(std_logic_vector(integer_to_commit.write_type.integer_value));
+                        integer_to_commit.bit_index := WORD_SIZE;
+                        memory_address_write <= integer_to_commit.address - integer_to_commit.bit_shift;
+
                         -- TODO: Encrypt again bit_buffer here --
-                        for i in 0 to ((INTEGER_BIT_BUFFER'length / WORD_SIZE) - 1) loop
-                            EncryptWord(word_to_commit.bit_buffer(((i * WORD_SIZE + WORD_SIZE) - 1) downto (i * WORD_SIZE)));
+                        for i in 0 to INTEGER_BIT_BUFFER'length / WORD_SIZE - 1 loop
+                            EncryptWord(integer_to_commit.bit_buffer(i * WORD_SIZE + WORD_SIZE - 1 downto i * WORD_SIZE));
                         end loop;
-                        memory_word_write <= word_to_commit.bit_buffer(WORD_SIZE - 1 downto 0);
+
+                        memory_word_write <= integer_to_commit.bit_buffer(WORD_SIZE - 1 downto 0);
                         commit_write_memory <= true;
-                        word_to_commit.write_type.is_inside_read_phase := false;
+                        integer_to_commit.write_type.is_inside_read_phase := false;
                     end if;
 
                     -- Keep commiting --
@@ -824,11 +853,13 @@ package body CentralProcessingUnit_Package is
                 else
                     -- Check if we have commited memory --
                     if not commit_write_memory then
-                        if word_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                            memory_address_write <= word_to_commit.address + word_to_commit.bit_index;
-                            memory_word_write <= word_to_commit.bit_buffer((word_to_commit.bit_index + WORD_SIZE - 1) 
-                                downto word_to_commit.bit_index);
-                            word_to_commit.bit_index := word_to_commit.bit_index + WORD_SIZE;
+                        if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
+                            memory_address_write <= integer_to_commit.address + integer_to_commit.bit_index;
+                            memory_word_write <= integer_to_commit.bit_buffer(
+                                integer_to_commit.bit_index + WORD_SIZE - 1 
+                                    downto integer_to_commit.bit_index
+                            );
+                            integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
                             commit_write_memory <= true;
                             signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
                         else
@@ -849,7 +880,7 @@ package body CentralProcessingUnit_Package is
         word: inout WORD_TYPE
     ) is
     begin
-        for i in 0 to (WORDS_TO_DECRYPT_FOR_TEA - 1) loop
+        for i in 0 to WORDS_TO_DECRYPT_FOR_TEA - 1 loop
             TEAEncrypt(TEA_KEY, word(((i * 64) + 63) downto (i * 64)));
         end loop;
     end EncryptWord;
@@ -859,7 +890,7 @@ package body CentralProcessingUnit_Package is
         word: inout WORD_TYPE
     ) is
     begin
-        for i in 0 to (WORDS_TO_DECRYPT_FOR_TEA - 1) loop
+        for i in 0 to WORDS_TO_DECRYPT_FOR_TEA - 1 loop
             TEADecrypt(TEA_KEY, word(((i * 64) + 63) downto (i * 64)));
         end loop;
     end DecryptWord;

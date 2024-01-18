@@ -16,10 +16,6 @@ entity MemoryController is
 end MemoryController;
 
 architecture MemoryController_Implementation of MemoryController is
-    ----------------------------------------
-    -- I don't think we're going to reach --
-    -- 2^512 bits of bit address space    --
-    ----------------------------------------
     constant REAL_MEMORY_END_ADDRESS: integer := 2**20 - 1;
     -- Will be used for I/O devices --
     constant MMIO_ADDRESS_START: integer := REAL_MEMORY_END_ADDRESS + 1;
@@ -27,12 +23,12 @@ architecture MemoryController_Implementation of MemoryController is
     signal internal_memory: BIT_VECTOR(REAL_MEMORY_END_ADDRESS downto 0) := (others => '0');
 begin
     process (commit_read_memory)
+        variable address: integer;
     begin
        if commit_read_memory then
             if memory_address_read + WORD_SIZE - 1 < MMIO_ADDRESS_START then
-                for i in 0 to (WORD_SIZE - 1) loop
-                    memory_word_read(i) <= internal_memory(to_integer(memory_address_read) + i);
-                end loop;
+                address := to_integer(memory_address_read);
+                memory_word_read <= internal_memory(address + WORD_SIZE - 1 downto address);
             end if;
             -- ack --
             commit_read_memory <= false;
@@ -40,12 +36,12 @@ begin
     end process;
 
     process (commit_write_memory)
+        variable address: integer;
     begin
        if commit_write_memory then
             if memory_address_write + WORD_SIZE - 1 < MMIO_ADDRESS_START then
-                for i in 0 to (WORD_SIZE - 1) loop
-                    internal_memory(to_integer(memory_address_write) + i) <= memory_word_write(i);
-                end loop;
+                address := to_integer(memory_address_write);
+                internal_memory(address + WORD_SIZE - 1 downto address) <= memory_word_write;
             end if;
             -- ack --
             commit_write_memory <= false;

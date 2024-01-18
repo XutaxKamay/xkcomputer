@@ -43,7 +43,7 @@ begin
         variable var_registers: REGISTERS_RECORD;
         variable var_instruction_phase: INSTRUCTION_PHASE := INSTRUCTION_PHASE_FETCHING;
         variable var_instruction_to_commit: COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        variable var_word_to_commit: WORD_TO_COMMIT_TYPE;
+        variable var_integer_to_commit: INTEGER_TO_COMMIT_TYPE;
         variable var_memory_mode_to_commit: MEMORY_MODE_TYPE;
     begin
         -- Reset has been raised --
@@ -84,10 +84,11 @@ begin
                                                     memory_address_read,
                                                     var_instruction_to_commit,
                                                     var_registers,
-                                                    var_word_to_commit,
+                                                    var_integer_to_commit,
                                                     signal_unit_state,
                                                     var_instruction_phase);
                 end case;
+
             when UNIT_STATE_COMMITING_MEMORY =>
                 case var_instruction_phase is
                     when INSTRUCTION_PHASE_FETCHING =>
@@ -105,7 +106,7 @@ begin
                                             memory_address_write,
                                             memory_word_read,
                                             memory_word_write,
-                                            var_word_to_commit,
+                                            var_integer_to_commit,
                                             var_registers,
                                             signal_unit_state,
                                             var_instruction_phase);

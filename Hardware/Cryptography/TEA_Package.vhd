@@ -54,7 +54,7 @@ package body TinyEncryptionAlgorithm is
         variable k2: TEA_INTEGER_TYPE := tea_key(2);
         variable k3: TEA_INTEGER_TYPE := tea_key(3);
     begin
-        for i in 0 to (TEA_INTEGER_TYPE'length - 1) loop
+        for i in 0 to TEA_INTEGER_TYPE'length - 1 loop
             sum := sum + MAGIC_DELTA_NUMBER;
             v0 := v0 + ((shift_left(v1, 4) + k0) xor (v1 + sum) xor (shift_right(v1, 5) + k1));
             v1 := v0 + ((shift_left(v1, 4) + k2) xor (v0 + sum) xor (shift_right(v0, 5) + k3));
@@ -74,7 +74,7 @@ package body TinyEncryptionAlgorithm is
         variable k2: TEA_INTEGER_TYPE := tea_key(2);
         variable k3: TEA_INTEGER_TYPE := tea_key(3);
     begin
-        for i in 0 to (TEA_INTEGER_TYPE'length - 1) loop
+        for i in 0 to TEA_INTEGER_TYPE'length - 1 loop
             v1 := v0 - ((shift_left(v1, 4) + k2) xor (v0 + sum) xor (shift_right(v0, 5) + k3));
             v0 := v0 - ((shift_left(v1, 4) + k0) xor (v1 + sum) xor (shift_right(v1, 5) + k1));
             sum := sum - MAGIC_DELTA_NUMBER;
@@ -93,6 +93,7 @@ package body TinyEncryptionAlgorithm is
         );
     begin
         TEAEncrypt(tea_key, tea_integers);
+
         tea_integers_bit_vec(31 downto 0) := to_bitvector(std_logic_vector(tea_integers(0)));
         tea_integers_bit_vec(63 downto 32) := to_bitvector(std_logic_vector(tea_integers(1)));
     end;
@@ -109,6 +110,7 @@ package body TinyEncryptionAlgorithm is
         );
     begin
         TEAEncrypt(tea_key, tea_integers);
+
         tea_integers_bit_vec(31 downto 0) := to_bitvector(std_logic_vector(tea_integers(0)));
         tea_integers_bit_vec(63 downto 32) := to_bitvector(std_logic_vector(tea_integers(1)));
     end;
