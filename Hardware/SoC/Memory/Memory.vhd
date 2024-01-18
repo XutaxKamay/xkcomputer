@@ -3,7 +3,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.CentralProcessingUnit_Package.all;
 
-entity MemoryController is
+entity Memory is
     port
     (
         commit_read_memory: inout boolean;
@@ -13,20 +13,18 @@ entity MemoryController is
         memory_word_read: out WORD_TYPE;
         memory_word_write: in WORD_TYPE
     );
-end MemoryController;
+end Memory;
 
-architecture MemoryController_Implementation of MemoryController is
-    constant REAL_MEMORY_END_ADDRESS: integer := 2**20 - 1;
-    -- Will be used for I/O devices --
-    constant MMIO_ADDRESS_START: integer := REAL_MEMORY_END_ADDRESS + 1;
+architecture Memory_Implementation of Memory is
+    constant MEMORY_SIZE: integer := 2**20;
 
-    signal internal_memory: BIT_VECTOR(REAL_MEMORY_END_ADDRESS downto 0) := (others => '0');
+    signal internal_memory: BIT_VECTOR(MEMORY_SIZE - 1 downto 0) := (others => '0');
 begin
     process (commit_read_memory)
         variable address: integer;
     begin
        if commit_read_memory then
-            if memory_address_read + WORD_SIZE - 1 < MMIO_ADDRESS_START then
+            if memory_address_read + WORD_SIZE - 1 < MEMORY_SIZE then
                 address := to_integer(memory_address_read);
                 memory_word_read <= internal_memory(address + WORD_SIZE - 1 downto address);
             end if;
@@ -39,7 +37,7 @@ begin
         variable address: integer;
     begin
        if commit_write_memory then
-            if memory_address_write + WORD_SIZE - 1 < MMIO_ADDRESS_START then
+            if memory_address_write + WORD_SIZE - 1 < MEMORY_SIZE then
                 address := to_integer(memory_address_write);
                 internal_memory(address + WORD_SIZE - 1 downto address) <= memory_word_write;
             end if;
@@ -47,4 +45,4 @@ begin
             commit_write_memory <= false;
        end if;
     end process;
-end MemoryController_Implementation;
+end Memory_Implementation;
