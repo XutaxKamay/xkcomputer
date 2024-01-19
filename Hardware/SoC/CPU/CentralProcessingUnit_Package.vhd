@@ -23,8 +23,8 @@ package CentralProcessingUnit_Package is
         MEMORY_MODE_WRITE
     );
 
-    -- 256 bits, ideal for AES and other encryption methods --
-    constant INTEGER_SIZE: integer := 24;
+    -- Needs to be power of two for ROR/ROL instruction --
+    constant INTEGER_SIZE: integer := 64;
 
     type ALU_OPERATION_INTEGER_TYPE is
     (
@@ -54,6 +54,12 @@ package CentralProcessingUnit_Package is
         ALU_OPERATION_TYPE_SUBTRACT,
         ALU_OPERATION_TYPE_DIVISION,
         ALU_OPERATION_TYPE_MULTIPLY,
+        ALU_OPERATION_TYPE_SLA,
+        ALU_OPERATION_TYPE_SRA,
+        ALU_OPERATION_TYPE_SLL,
+        ALU_OPERATION_TYPE_SRL,
+        ALU_OPERATION_TYPE_ROL,
+        ALU_OPERATION_TYPE_ROR,
         -- Operation with only one integer --
         ALU_OPERATION_TYPE_SET,
         ALU_OPERATION_TYPE_NOT,
@@ -68,29 +74,35 @@ package CentralProcessingUnit_Package is
     subtype CPU_INTEGER_TYPE is ALU_INTEGER_IN_TYPE;
     constant CPU_INTEGER_TYPE_SIZE: integer := CPU_INTEGER_TYPE'length;
 
-    subtype OPCODE_TYPE is BIT_VECTOR(3 downto 0);
+    subtype OPCODE_TYPE is BIT_VECTOR(4 downto 0);
     constant OPCODE_TYPE_SIZE: integer := OPCODE_TYPE'length;
 
     -- Integer operations --
-    constant OPCODE_TYPE_SET: OPCODE_TYPE := "0000";
-    constant OPCODE_TYPE_OR: OPCODE_TYPE := "0001";
-    constant OPCODE_TYPE_AND: OPCODE_TYPE := "0010";
-    constant OPCODE_TYPE_NOT: OPCODE_TYPE := "0011";
-    constant OPCODE_TYPE_ADD: OPCODE_TYPE := "0100";
-    constant OPCODE_TYPE_SUBSTRACT: OPCODE_TYPE := "0101";
-    constant OPCODE_TYPE_DIVISION: OPCODE_TYPE := "0110";
-    constant OPCODE_TYPE_MULTIPLY: OPCODE_TYPE := "0111";
+    constant OPCODE_TYPE_SET: OPCODE_TYPE := "00000";
+    constant OPCODE_TYPE_OR: OPCODE_TYPE := "00001";
+    constant OPCODE_TYPE_AND: OPCODE_TYPE := "00010";
+    constant OPCODE_TYPE_NOT: OPCODE_TYPE := "00011";
+    constant OPCODE_TYPE_ADD: OPCODE_TYPE := "00100";
+    constant OPCODE_TYPE_SUBSTRACT: OPCODE_TYPE := "00101";
+    constant OPCODE_TYPE_DIVISION: OPCODE_TYPE := "00110";
+    constant OPCODE_TYPE_MULTIPLY: OPCODE_TYPE := "00111";
+    constant OPCODE_TYPE_SLA: OPCODE_TYPE := "01000";
+    constant OPCODE_TYPE_SRA: OPCODE_TYPE := "01001";
+    constant OPCODE_TYPE_SLL: OPCODE_TYPE := "01010";
+    constant OPCODE_TYPE_SRL: OPCODE_TYPE := "01011";
+    constant OPCODE_TYPE_ROL: OPCODE_TYPE := "01100";
+    constant OPCODE_TYPE_ROR: OPCODE_TYPE := "01101";
     -- Memory instructions --
-    constant OPCODE_TYPE_READ: OPCODE_TYPE := "1000";
-    constant OPCODE_TYPE_WRITE: OPCODE_TYPE := "1001";
+    constant OPCODE_TYPE_READ: OPCODE_TYPE := "01110";
+    constant OPCODE_TYPE_WRITE: OPCODE_TYPE := "01111";
     -- Branch instructions --
-    constant OPCODE_TYPE_IS_BIGGER: OPCODE_TYPE := "1010";
-    constant OPCODE_TYPE_IS_LOWER: OPCODE_TYPE := "1011";
-    constant OPCODE_TYPE_IS_EQUAL: OPCODE_TYPE := "1100";
-    constant OPCODE_TYPE_HAD_INTEGER_OVERFLOW: OPCODE_TYPE := "1101";
+    constant OPCODE_TYPE_IS_BIGGER: OPCODE_TYPE := "10000";
+    constant OPCODE_TYPE_IS_LOWER: OPCODE_TYPE := "10001";
+    constant OPCODE_TYPE_IS_EQUAL: OPCODE_TYPE := "10010";
+    constant OPCODE_TYPE_HAD_INTEGER_OVERFLOW: OPCODE_TYPE := "10011";
     -- Jumping and branches --
-    constant OPCODE_TYPE_JUMP: OPCODE_TYPE := "1110";
-    constant OPCODE_TYPE_BRANCH: OPCODE_TYPE := "1111";
+    constant OPCODE_TYPE_JUMP: OPCODE_TYPE := "10100";
+    constant OPCODE_TYPE_BRANCH: OPCODE_TYPE := "10101";
 
     subtype OPERAND_TYPE is BIT;
     constant OPERAND_TYPE_SIZE: integer := 1;
@@ -331,12 +343,30 @@ package body CentralProcessingUnit_Package is
 
             when ALU_OPERATION_TYPE_AND =>
                 temporary_resulting_integer := integer_in_left and integer_in_right;
+
+            when ALU_OPERATION_TYPE_SLA =>
+                temporary_resulting_integer := integer_in_left sla to_integer(integer_in_right);
+
+            when ALU_OPERATION_TYPE_SRA =>
+                temporary_resulting_integer := integer_in_left sra to_integer(integer_in_right);
             
+            when ALU_OPERATION_TYPE_SLL =>
+                temporary_resulting_integer := integer_in_left sll to_integer(integer_in_right);
+
+            when ALU_OPERATION_TYPE_SRL =>
+                temporary_resulting_integer := integer_in_left srl to_integer(integer_in_right);
+
+            when ALU_OPERATION_TYPE_ROL =>
+                temporary_resulting_integer := integer_in_left rol to_integer(integer_in_right);
+
+            when ALU_OPERATION_TYPE_ROR =>
+                temporary_resulting_integer := integer_in_left ror to_integer(integer_in_right);
+
             when ALU_OPERATION_TYPE_SET =>
                 temporary_resulting_integer := integer_in_right;
 
             when ALU_OPERATION_TYPE_NOT =>
-                temporary_resulting_integer := not integer_in_left;
+                temporary_resulting_integer := not integer_in_right;
 
             when ALU_OPERATION_TYPE_BIGGER =>
                 condition := integer_in_left > integer_in_right;
@@ -524,6 +554,30 @@ package body CentralProcessingUnit_Package is
                 operation_type := ALU_OPERATION_TYPE_MULTIPLY;
                 is_alu_operation_type := true;
 
+            when OPCODE_TYPE_SLA =>
+                operation_type := ALU_OPERATION_TYPE_SLA;
+                is_alu_operation_type := true;
+
+            when OPCODE_TYPE_SRA =>
+                operation_type := ALU_OPERATION_TYPE_SRA;
+                is_alu_operation_type := true;
+
+            when OPCODE_TYPE_SLL =>
+                operation_type := ALU_OPERATION_TYPE_SLL;
+                is_alu_operation_type := true;
+            
+            when OPCODE_TYPE_SRL =>
+                operation_type := ALU_OPERATION_TYPE_SRL;
+                is_alu_operation_type := true;
+
+            when OPCODE_TYPE_ROL =>
+                operation_type := ALU_OPERATION_TYPE_ROL;
+                is_alu_operation_type := true;
+
+            when OPCODE_TYPE_ROR =>
+                operation_type := ALU_OPERATION_TYPE_ROR;
+                is_alu_operation_type := true;
+
             when OPCODE_TYPE_READ =>
                 HandleMemoryOperations(MEMORY_MODE_READ,
                                        decoded_instruction,
@@ -576,6 +630,10 @@ package body CentralProcessingUnit_Package is
                 end if;
                 -- We're jumping --
                 is_jumping := true;
+
+            -- For now ignore.
+            when others =>
+                null;
         end case;
 
         if is_alu_operation_type then
