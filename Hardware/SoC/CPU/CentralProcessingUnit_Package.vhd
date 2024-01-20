@@ -5,6 +5,12 @@ use work.TinyEncryptionAlgorithm.all;
 
 package CentralProcessingUnit_Package is
 
+    function GetLargestAlignementSize
+    (
+        size1: integer;
+        size2: integer
+    ) return integer;
+
     type UNIT_STATE is
     (
         UNIT_STATE_INSTRUCTION_PHASE,
@@ -167,17 +173,23 @@ package CentralProcessingUnit_Package is
         + (OPERAND_TYPE_SIZE + CPU_INTEGER_TYPE_SIZE + REGISTER_INDEX_TYPE_SIZE);
     subtype INSTRUCTION_BIT_VECTOR is BIT_VECTOR(INSTRUCTION_SIZE - 1 downto 0);
 
-    constant WORD_SIZE: integer := 64;
-    constant WORDS_TO_DECRYPT_FOR_TEA: integer := WORD_SIZE / 64;
+    constant ENCRYPTED_CHUNK_SIZE: integer := TEA_INTEGERS_TYPE'length * TEA_INTEGER_TYPE'length;
+
+    -- Word size must be at least equal or bigger than ENCRYPTED_CHUNK_SIZE --
+    constant WORD_SIZE: integer := ENCRYPTED_CHUNK_SIZE;
+    constant ENCRYPTED_CHUNKS_IN_A_WORD_TO_DECRYPT_FOR_TEA: integer := WORD_SIZE / ENCRYPTED_CHUNK_SIZE;
+    constant WORDS_IN_A_ENCRYPTED_CHUNK_TO_DECRYPT_FOR_TEA: integer := ENCRYPTED_CHUNK_SIZE / WORD_SIZE;
+
+    constant ALIGN_SIZE: integer := GetLargestAlignementSize(ENCRYPTED_CHUNK_SIZE, WORD_SIZE);
     subtype WORD_TYPE is BIT_VECTOR(WORD_SIZE - 1 downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
-        + (WORD_SIZE - (INSTRUCTION_SIZE mod WORD_SIZE));
+        + (ALIGN_SIZE - (INSTRUCTION_SIZE mod ALIGN_SIZE));
     subtype INSTRUCTION_BIT_BUFFER is
         BIT_VECTOR(AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION - 1 downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER: integer := CPU_INTEGER_TYPE_SIZE
-        + (WORD_SIZE - (CPU_INTEGER_TYPE_SIZE mod WORD_SIZE));
+        + (ALIGN_SIZE - (CPU_INTEGER_TYPE_SIZE mod ALIGN_SIZE));
     subtype INTEGER_BIT_BUFFER is BIT_VECTOR(AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER - 1 downto 0);
 
     -- Need specialized type for such fetchs --
@@ -212,14 +224,15 @@ package CentralProcessingUnit_Package is
     -- b392387fe1c4e11afb34f1ca52261c26 --
     constant TEA_KEY: TEA_KEY_TYPE := (x"b392387f", x"e1c4e11a", x"fb34f1ca", x"52261c26");
 
-    procedure EncryptWord
+    -- If word size is bigger than encrypted chunk size --
+    procedure Encrypt
     (
-        word: inout WORD_TYPE
+        bit_buffer: inout BIT_VECTOR
     );
 
-    procedure DecryptWord
+    procedure Decrypt
     (
-        word: inout WORD_TYPE
+        bit_buffer: inout BIT_VECTOR
     );
 
     -- Function and procedures --
@@ -299,6 +312,20 @@ package CentralProcessingUnit_Package is
 end CentralProcessingUnit_Package;
 
 package body CentralProcessingUnit_Package is
+
+    function GetLargestAlignementSize
+    (
+        size1: integer;
+        size2: integer
+    ) return integer is
+    begin
+        if (size1 > size2) then
+            return size1;
+        else
+            return size2;
+        end if;
+    end;
+
     function HandleALUOperations
     (
         operation_type: ALU_OPERATION_TYPE;
@@ -728,10 +755,7 @@ package body CentralProcessingUnit_Package is
                 signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
             else
                 -- TODO: Decrypt memory here --
-                for i in 0 to INSTRUCTION_BIT_BUFFER'length / WORD_SIZE - 1 loop
-                    DecryptWord(instruction_to_commit.bit_buffer(i * WORD_SIZE + WORD_SIZE - 1 downto i * WORD_SIZE));
-                end loop;
-
+                Decrypt(instruction_to_commit.bit_buffer);
                 -- We fetched the whole instruction, trigger a new execution on instruction phase --
                 var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
                 signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
@@ -762,11 +786,8 @@ package body CentralProcessingUnit_Package is
                 downto instruction_to_commit.bit_shift
         );
 
-        -- Do not leak information --
-        for i in 0 to INSTRUCTION_BIT_BUFFER'length / WORD_SIZE - 1 loop
-            EncryptWord(instruction_to_commit.bit_buffer(i * WORD_SIZE + WORD_SIZE - 1 downto i * WORD_SIZE));
-        end loop;
-
+        -- TODO: Do not leak information --
+        Encrypt(instruction_to_commit.bit_buffer);
         decoded_instruction := DecodeInstruction(encoded_instruction);
 
         -- Execute instruction --
@@ -809,9 +830,7 @@ package body CentralProcessingUnit_Package is
     begin
         -- Has something been fetch yet ? --
         if not commit_read_memory then
-            -- TODO: Decrypt memory --
             word_read := memory_word_read;
-            DecryptWord(word_read);
 
             -- Gotcha, need to store into buffer --
             integer_to_commit.bit_buffer(
@@ -829,6 +848,9 @@ package body CentralProcessingUnit_Package is
             if integer_to_commit.bit_count < INTEGER_BIT_BUFFER'length then
                 memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
                 commit_read_memory <= true;
+            else
+                -- TODO: Decrypt --
+                Decrypt(integer_to_commit.bit_buffer);
             end if;
         end if;
     end HandleFetchWord;
@@ -867,11 +889,8 @@ package body CentralProcessingUnit_Package is
                             )
                         );
 
-                        -- Do not leak information --
-                        for i in 0 to INTEGER_BIT_BUFFER'length / WORD_SIZE - 1 loop
-                            EncryptWord(integer_to_commit.bit_buffer(i * WORD_SIZE + WORD_SIZE - 1 downto i * WORD_SIZE));
-                        end loop;
-
+                        -- TODO: Do not leak information for encrypted memory --
+                        Encrypt(integer_to_commit.bit_buffer);
                         var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
                         signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
                     else
@@ -897,10 +916,7 @@ package body CentralProcessingUnit_Package is
                         memory_address_write <= integer_to_commit.address - integer_to_commit.bit_shift;
 
                         -- TODO: Encrypt again bit_buffer here --
-                        for i in 0 to INTEGER_BIT_BUFFER'length / WORD_SIZE - 1 loop
-                            EncryptWord(integer_to_commit.bit_buffer(i * WORD_SIZE + WORD_SIZE - 1 downto i * WORD_SIZE));
-                        end loop;
-
+                        Encrypt(integer_to_commit.bit_buffer);
                         memory_word_write <= integer_to_commit.bit_buffer(WORD_SIZE - 1 downto 0);
                         commit_write_memory <= true;
                         integer_to_commit.write_type.is_inside_read_phase := false;
@@ -933,24 +949,26 @@ package body CentralProcessingUnit_Package is
         end case;
     end HandlePostExecution;
 
-    procedure EncryptWord
+    procedure Encrypt
     (
-        word: inout WORD_TYPE
+        bit_buffer: inout BIT_VECTOR
     ) is
+        constant NUMBER_OF_ENCRYPTED_CHUNKS: integer := bit_buffer'length / ENCRYPTED_CHUNK_SIZE;
     begin
-        for i in 0 to WORDS_TO_DECRYPT_FOR_TEA - 1 loop
-            TEAEncrypt(TEA_KEY, word(((i * 64) + 63) downto (i * 64)));
+        for i in 0 to NUMBER_OF_ENCRYPTED_CHUNKS - 1 loop
+            TEAEncrypt(TEA_KEY, bit_buffer(ENCRYPTED_CHUNK_SIZE * i + ENCRYPTED_CHUNK_SIZE - 1 downto ENCRYPTED_CHUNK_SIZE * i));
         end loop;
-    end EncryptWord;
+    end;
 
-    procedure DecryptWord
+    procedure Decrypt
     (
-        word: inout WORD_TYPE
+        bit_buffer: inout BIT_VECTOR
     ) is
+        constant NUMBER_OF_ENCRYPTED_CHUNKS: integer := bit_buffer'length / ENCRYPTED_CHUNK_SIZE;
     begin
-        for i in 0 to WORDS_TO_DECRYPT_FOR_TEA - 1 loop
-            TEADecrypt(TEA_KEY, word(((i * 64) + 63) downto (i * 64)));
+        for i in 0 to NUMBER_OF_ENCRYPTED_CHUNKS - 1 loop
+            TEADecrypt(TEA_KEY, bit_buffer(ENCRYPTED_CHUNK_SIZE * i + ENCRYPTED_CHUNK_SIZE - 1 downto ENCRYPTED_CHUNK_SIZE * i));
         end loop;
-    end DecryptWord;
+    end;
 
 end CentralProcessingUnit_Package;
