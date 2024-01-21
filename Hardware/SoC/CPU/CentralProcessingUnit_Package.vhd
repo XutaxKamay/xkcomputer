@@ -1,15 +1,10 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use work.TinyEncryptionAlgorithm.all;
+use work.TinyEncryptionAlgorithm_Package.all;
+use work.Maths_Package.all;
 
 package CentralProcessingUnit_Package is
-
-    function GetLargestAlignementSize
-    (
-        size1: integer;
-        size2: integer
-    ) return integer;
 
     type UNIT_STATE is
     (
@@ -175,12 +170,11 @@ package CentralProcessingUnit_Package is
 
     constant ENCRYPTED_CHUNK_SIZE: integer := TEA_INTEGERS_TYPE'length * TEA_INTEGER_TYPE'length;
 
-    -- Word size must be at least equal or bigger than ENCRYPTED_CHUNK_SIZE --
     constant WORD_SIZE: integer := ENCRYPTED_CHUNK_SIZE;
     constant ENCRYPTED_CHUNKS_IN_A_WORD_TO_DECRYPT_FOR_TEA: integer := WORD_SIZE / ENCRYPTED_CHUNK_SIZE;
     constant WORDS_IN_A_ENCRYPTED_CHUNK_TO_DECRYPT_FOR_TEA: integer := ENCRYPTED_CHUNK_SIZE / WORD_SIZE;
 
-    constant ALIGN_SIZE: integer := GetLargestAlignementSize(ENCRYPTED_CHUNK_SIZE, WORD_SIZE);
+    constant ALIGN_SIZE: integer := IntegerMax(ENCRYPTED_CHUNK_SIZE, WORD_SIZE);
     subtype WORD_TYPE is BIT_VECTOR(WORD_SIZE - 1 downto 0);
 
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
@@ -312,19 +306,6 @@ package CentralProcessingUnit_Package is
 end CentralProcessingUnit_Package;
 
 package body CentralProcessingUnit_Package is
-
-    function GetLargestAlignementSize
-    (
-        size1: integer;
-        size2: integer
-    ) return integer is
-    begin
-        if (size1 > size2) then
-            return size1;
-        else
-            return size2;
-        end if;
-    end;
 
     function HandleALUOperations
     (

@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 -- https://crypto.stackexchange.com/questions/16186/is-tea-considered-secure/16193#16193 --
 -- Should be secure if used carefully --
 
-package TinyEncryptionAlgorithm is
+package TinyEncryptionAlgorithm_Package is
 
     subtype TEA_INTEGER_TYPE is unsigned(31 downto 0);
     type TEA_INTEGERS_TYPE is array(0 to 1) of TEA_INTEGER_TYPE;
@@ -37,9 +37,9 @@ package TinyEncryptionAlgorithm is
         tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
     );
 
-end TinyEncryptionAlgorithm;
+end TinyEncryptionAlgorithm_Package;
 
-package body TinyEncryptionAlgorithm is
+package body TinyEncryptionAlgorithm_Package is
 
     procedure TEAEncrypt
     (
@@ -115,4 +115,4 @@ package body TinyEncryptionAlgorithm is
         tea_integers_bit_vec(63 downto 32) := to_bitvector(std_logic_vector(tea_integers(1)));
     end;
 
-end TinyEncryptionAlgorithm;
+end TinyEncryptionAlgorithm_Package;
