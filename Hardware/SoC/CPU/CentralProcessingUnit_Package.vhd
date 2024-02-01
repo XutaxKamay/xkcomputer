@@ -25,7 +25,7 @@ package CentralProcessingUnit_Package is
     );
 
     -- Needs to be power of two for ROR/ROL instruction --
-    constant INTEGER_SIZE: integer := 64;
+    constant INTEGER_SIZE: integer := 32;
 
     type ALU_OPERATION_INTEGER_TYPE is
     (
@@ -261,7 +261,7 @@ package CentralProcessingUnit_Package is
 
     procedure AskFetchInstruction
     (
-        signal commit_read_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
@@ -270,7 +270,7 @@ package CentralProcessingUnit_Package is
 
     procedure HandleFetchInstruction
     (
-        signal commit_read_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
@@ -280,7 +280,7 @@ package CentralProcessingUnit_Package is
 
     procedure DecodeAndExecuteInstruction
     (
-        signal commit_read_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -291,8 +291,8 @@ package CentralProcessingUnit_Package is
 
     procedure HandlePostExecution
     (
-        signal commit_read_memory: inout boolean;
-        signal commit_write_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
+        signal committing_write_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
@@ -680,7 +680,7 @@ package body CentralProcessingUnit_Package is
 
     procedure AskFetchInstruction
     (
-        signal commit_read_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
@@ -693,13 +693,13 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit.bit_index := 0;
         instruction_to_commit.bit_shift := bit_shift;
         memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift;
-        commit_read_memory <= true;
+        committing_read_memory <= true;
         signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
     end AskFetchInstruction;
 
     procedure HandleFetchInstruction
     (
-        signal commit_read_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
@@ -708,7 +708,7 @@ package body CentralProcessingUnit_Package is
     ) is
     begin
         -- Wait for memory commit --
-        if not commit_read_memory then
+        if not committing_read_memory then
             -- Store the bits inside a buffer, they will be decoded later --
             instruction_to_commit.bit_buffer
             (
@@ -732,7 +732,7 @@ package body CentralProcessingUnit_Package is
             if instruction_to_commit.bit_count < INSTRUCTION_BIT_BUFFER'length then
                 memory_address_read <= instruction_to_commit.address 
                     - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
-                commit_read_memory <= true;
+                committing_read_memory <= true;
                 signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
             else
                 -- TODO: Decrypt memory here --
@@ -749,7 +749,7 @@ package body CentralProcessingUnit_Package is
 
     procedure DecodeAndExecuteInstruction
     (
-        signal commit_read_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -790,7 +790,7 @@ package body CentralProcessingUnit_Package is
             -- Normally, this isn't needed, but in case
             -- of encryption/decryption, it is.
             -- So it starts with reading memory anyway.
-            commit_read_memory <= true;
+            committing_read_memory <= true;
             signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
         -- Otherwise fetch again another instruction --
         else
@@ -802,7 +802,7 @@ package body CentralProcessingUnit_Package is
     -- Mostly same logic as HandleFetchInstruction --
     procedure HandleFetchWord
     (
-        signal commit_read_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
@@ -810,7 +810,7 @@ package body CentralProcessingUnit_Package is
         variable word_read: WORD_TYPE;
     begin
         -- Has something been fetch yet ? --
-        if not commit_read_memory then
+        if not committing_read_memory then
             word_read := memory_word_read;
 
             -- Gotcha, need to store into buffer --
@@ -828,7 +828,7 @@ package body CentralProcessingUnit_Package is
             -- Do we keep fetching ? --
             if integer_to_commit.bit_count < INTEGER_BIT_BUFFER'length then
                 memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
-                commit_read_memory <= true;
+                committing_read_memory <= true;
             else
                 -- TODO: Decrypt --
                 Decrypt(integer_to_commit.bit_buffer);
@@ -838,8 +838,8 @@ package body CentralProcessingUnit_Package is
 
     procedure HandlePostExecution
     (
-        signal commit_read_memory: inout boolean;
-        signal commit_write_memory: inout boolean;
+        signal committing_read_memory: inout boolean;
+        signal committing_write_memory: inout boolean;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
@@ -852,7 +852,7 @@ package body CentralProcessingUnit_Package is
     begin
         case integer_to_commit.mode is
             when MEMORY_MODE_READ =>
-                    HandleFetchWord(commit_read_memory,
+                    HandleFetchWord(committing_read_memory,
                                     memory_address_read,
                                     memory_word_read,
                                     integer_to_commit);
@@ -881,7 +881,7 @@ package body CentralProcessingUnit_Package is
 
             when MEMORY_MODE_WRITE =>
                 if integer_to_commit.write_type.is_inside_read_phase then
-                    HandleFetchWord(commit_read_memory,
+                    HandleFetchWord(committing_read_memory,
                                     memory_address_read,
                                     memory_word_read,
                                     integer_to_commit);
@@ -899,7 +899,7 @@ package body CentralProcessingUnit_Package is
                         -- TODO: Encrypt again bit_buffer here --
                         Encrypt(integer_to_commit.bit_buffer);
                         memory_word_write <= integer_to_commit.bit_buffer(WORD_SIZE - 1 downto 0);
-                        commit_write_memory <= true;
+                        committing_write_memory <= true;
                         integer_to_commit.write_type.is_inside_read_phase := false;
                     end if;
 
@@ -907,7 +907,7 @@ package body CentralProcessingUnit_Package is
                     signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
                 else
                     -- Check if we have commited memory --
-                    if not commit_write_memory then
+                    if not committing_write_memory then
                         if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
                             memory_address_write <= integer_to_commit.address + integer_to_commit.bit_index;
                             memory_word_write <= integer_to_commit.bit_buffer(
@@ -915,7 +915,7 @@ package body CentralProcessingUnit_Package is
                                     downto integer_to_commit.bit_index
                             );
                             integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
-                            commit_write_memory <= true;
+                            committing_write_memory <= true;
                             signal_unit_state <= UNIT_STATE_COMMITING_MEMORY;
                         else
                             -- Return to ask another instruction --

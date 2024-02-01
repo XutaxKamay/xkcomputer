@@ -7,8 +7,8 @@ entity CentralProcessingUnit is
     port
     (
         reset: in boolean;
-        commit_read_memory: inout boolean;
-        commit_write_memory: inout boolean;
+        committing_read_memory: inout boolean;
+        committing_write_memory: inout boolean;
         memory_address_read: out CPU_ADDRESS_TYPE;
         memory_address_write: out CPU_ADDRESS_TYPE;
         memory_word_read: in WORD_TYPE;
@@ -54,8 +54,8 @@ begin
                                           condition_flag => false,
                                           program_counter => (others => '0'))); 
             -- Do not wait for memory controller to set them to false --
-            commit_read_memory <= false;
-            commit_write_memory <= false;
+            committing_read_memory <= false;
+            committing_write_memory <= false;
             var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
             -- Will trigger again a new process execution --
             signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
@@ -73,14 +73,14 @@ begin
             when UNIT_STATE_INSTRUCTION_PHASE =>
                 case var_instruction_phase is
                     when INSTRUCTION_PHASE_FETCHING =>
-                        AskFetchInstruction(commit_read_memory,
+                        AskFetchInstruction(committing_read_memory,
                                             memory_address_read,
                                             var_registers,
                                             var_instruction_to_commit,
                                             signal_unit_state);
 
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
-                        DecodeAndExecuteInstruction(commit_read_memory,
+                        DecodeAndExecuteInstruction(committing_read_memory,
                                                     memory_address_read,
                                                     var_instruction_to_commit,
                                                     var_registers,
@@ -92,7 +92,7 @@ begin
             when UNIT_STATE_COMMITING_MEMORY =>
                 case var_instruction_phase is
                     when INSTRUCTION_PHASE_FETCHING =>
-                        HandleFetchInstruction(commit_read_memory,
+                        HandleFetchInstruction(committing_read_memory,
                                                memory_address_read,
                                                memory_word_read,
                                                var_instruction_to_commit,
@@ -100,8 +100,8 @@ begin
                                                var_instruction_phase);
 
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
-                        HandlePostExecution(commit_read_memory,
-                                            commit_write_memory,
+                        HandlePostExecution(committing_read_memory,
+                                            committing_write_memory,
                                             memory_address_read,
                                             memory_address_write,
                                             memory_word_read,
