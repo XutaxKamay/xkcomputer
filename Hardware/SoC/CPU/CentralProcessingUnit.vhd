@@ -6,7 +6,6 @@ use work.CentralProcessingUnit_Package.all;
 entity CentralProcessingUnit is
     port
     (
-        reset: in boolean;
         committing_read_memory: inout boolean;
         committing_write_memory: inout boolean;
         memory_address_read: out CPU_ADDRESS_TYPE;
@@ -17,50 +16,24 @@ entity CentralProcessingUnit is
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-
-    signal signal_reset_request: boolean;
-    signal signal_has_woke_up_once: boolean := false;
     signal signal_unit_state: UNIT_STATE := UNIT_STATE_INSTRUCTION_PHASE;
 
 begin
-    -- Handle control unit reset --
-    process (reset)
-    begin
-        if reset then
-            signal_reset_request <= true;
-            if not signal_has_woke_up_once then
-                signal_has_woke_up_once <= true;
-            end if;
-        else
-            signal_reset_request <= false;
-        end if;
-    end process;
-
     ----------------------------------------------------------------------------
     -- Handle control unit states
     -- Feedback loop based on signal_unit_state FSM
-    process (signal_has_woke_up_once, signal_unit_state)
-        variable var_registers: REGISTERS_RECORD;
+    process (signal_unit_state)
+        variable var_registers: REGISTERS_RECORD := 
+            (general => (others => (others => '0')),
+             special => (overflow_flag => false, 
+                         condition_flag => false,
+                         program_counter => (others => '0')));
         variable var_instruction_phase: INSTRUCTION_PHASE := INSTRUCTION_PHASE_FETCHING;
         variable var_instruction_to_commit: COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         variable var_integer_to_commit: INTEGER_TO_COMMIT_TYPE;
         variable var_memory_mode_to_commit: MEMORY_MODE_TYPE;
+        variable var_unit_state: UNIT_STATE;
     begin
-        -- Reset has been raised --
-        if signal_reset_request then
-            -- Reset CPU --
-            var_registers := (general => (others => (others => '0')),
-                              special => (overflow_flag => false, 
-                                          condition_flag => false,
-                                          program_counter => (others => '0'))); 
-            -- Do not wait for memory controller to set them to false --
-            committing_read_memory <= false;
-            committing_write_memory <= false;
-            var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
-            -- Will trigger again a new process execution --
-            signal_unit_state <= UNIT_STATE_INSTRUCTION_PHASE;
-        end if;
-
         ---------------------------------------------------------------------
         -- During instruction phase, there's no I/O for memory.
         -- Instead, it will be preparing data for I/O memory.
@@ -77,7 +50,7 @@ begin
                                             memory_address_read,
                                             var_registers,
                                             var_instruction_to_commit,
-                                            signal_unit_state);
+                                            var_unit_state);
 
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
                         DecodeAndExecuteInstruction(committing_read_memory,
@@ -85,7 +58,7 @@ begin
                                                     var_instruction_to_commit,
                                                     var_registers,
                                                     var_integer_to_commit,
-                                                    signal_unit_state,
+                                                    var_unit_state,
                                                     var_instruction_phase);
                 end case;
 
@@ -96,7 +69,7 @@ begin
                                                memory_address_read,
                                                memory_word_read,
                                                var_instruction_to_commit,
-                                               signal_unit_state,
+                                               var_unit_state,
                                                var_instruction_phase);
 
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
@@ -108,10 +81,13 @@ begin
                                             memory_word_write,
                                             var_integer_to_commit,
                                             var_registers,
-                                            signal_unit_state,
+                                            var_unit_state,
                                             var_instruction_phase);
                 end case;
         end case;
+
+        -- Do a feedback loop --
+        signal_unit_state <= var_unit_state;
     end process;
 
 end CentralProcessingUnit_Implementation;
