@@ -906,7 +906,8 @@ package body CentralProcessingUnit_Package is
                     -- Check if we have commited memory --
                     if not committing_write_memory then
                         if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                            memory_address_write <= integer_to_commit.address + integer_to_commit.bit_index;
+                            memory_address_write <= integer_to_commit.address +
+                                integer_to_commit.bit_index - integer_to_commit.bit_shift;
                             memory_word_write <= integer_to_commit.bit_buffer(
                                 integer_to_commit.bit_index + WORD_SIZE - 1 
                                     downto integer_to_commit.bit_index
