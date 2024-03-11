@@ -171,9 +171,6 @@ package CentralProcessingUnit_Package is
     constant ENCRYPTED_CHUNK_SIZE: integer := TEA_INTEGERS_TYPE'length * TEA_INTEGER_TYPE'length;
 
     constant WORD_SIZE: integer := ENCRYPTED_CHUNK_SIZE;
-    constant ENCRYPTED_CHUNKS_IN_A_WORD_TO_DECRYPT_FOR_TEA: integer := WORD_SIZE / ENCRYPTED_CHUNK_SIZE;
-    constant WORDS_IN_A_ENCRYPTED_CHUNK_TO_DECRYPT_FOR_TEA: integer := ENCRYPTED_CHUNK_SIZE / WORD_SIZE;
-
     constant ALIGN_SIZE: integer := IntegerMax(ENCRYPTED_CHUNK_SIZE, WORD_SIZE);
     subtype WORD_TYPE is BIT_VECTOR(WORD_SIZE - 1 downto 0);
 
@@ -686,7 +683,7 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE
     ) is
-        variable bit_shift: integer := to_integer(instruction_to_commit.address mod WORD_SIZE);
+        variable bit_shift: integer := to_integer(registers.special.program_counter mod WORD_SIZE);
     begin
         instruction_to_commit.address := registers.special.program_counter;
         instruction_to_commit.bit_count := 0;
@@ -721,10 +718,10 @@ package body CentralProcessingUnit_Package is
             -- Increment to WORD_SIZE - shift,
             -- the shift is used so we're sure that we got the exact number of bits we want
             -- This is only needed the first time though
-            instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_SIZE;
-
             if instruction_to_commit.bit_count = 0 then
-                instruction_to_commit.bit_count := instruction_to_commit.bit_count - instruction_to_commit.bit_shift;
+                instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_SIZE - instruction_to_commit.bit_shift;
+            else
+                instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_SIZE;
             end if;
 
             -- Do we keep fetching ? --
@@ -818,10 +815,11 @@ package body CentralProcessingUnit_Package is
             ) := word_read;
 
             integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
-            integer_to_commit.bit_count := integer_to_commit.bit_count + WORD_SIZE;
 
             if integer_to_commit.bit_count = 0 then
-                integer_to_commit.bit_count := integer_to_commit.bit_count - integer_to_commit.bit_shift;
+                integer_to_commit.bit_count := integer_to_commit.bit_count + WORD_SIZE - integer_to_commit.bit_shift;
+            else
+                integer_to_commit.bit_count := integer_to_commit.bit_count + WORD_SIZE;
             end if;
 
             -- Do we keep fetching ? --
@@ -889,7 +887,7 @@ package body CentralProcessingUnit_Package is
                     if integer_to_commit.bit_count >= INTEGER_BIT_BUFFER'length then
                         -- Then prepare the integer to write --
                         integer_to_commit.bit_buffer(
-                            CPU_ADDRESS_TYPE_SIZE + integer_to_commit.bit_shift - 1
+                            CPU_INTEGER_TYPE_SIZE + integer_to_commit.bit_shift - 1
                                 downto integer_to_commit.bit_shift
                         ) := to_bitvector(std_logic_vector(integer_to_commit.write_type.integer_value));
                         integer_to_commit.bit_index := WORD_SIZE;
