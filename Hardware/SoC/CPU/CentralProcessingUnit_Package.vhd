@@ -707,10 +707,11 @@ package body CentralProcessingUnit_Package is
         -- Wait for memory commit --
         if not committing_read_memory then
             -- Store the bits inside a buffer, they will be decoded later --
-            instruction_to_commit.bit_buffer(
-                instruction_to_commit.bit_index + WORD_SIZE - 1
-                    downto instruction_to_commit.bit_index
-            ) := memory_word_read;
+            for i in WORD_SIZE - 1 downto 0 loop
+                instruction_to_commit.bit_buffer(
+                    instruction_to_commit.bit_index + i
+                ) := memory_word_read(i);
+            end loop;
 
             instruction_to_commit.bit_index := instruction_to_commit.bit_index + WORD_SIZE;
 
@@ -803,16 +804,15 @@ package body CentralProcessingUnit_Package is
         signal memory_word_read: in WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     ) is
-        variable word_read: WORD_TYPE;
     begin
         -- Has something been fetch yet ? --
         if not committing_read_memory then
-            word_read := memory_word_read;
-
             -- Gotcha, need to store into buffer --
-            integer_to_commit.bit_buffer(
-                integer_to_commit.bit_index + WORD_SIZE - 1 downto integer_to_commit.bit_index
-            ) := word_read;
+            for i in WORD_SIZE - 1 downto 0 loop
+                integer_to_commit.bit_buffer(
+                    integer_to_commit.bit_index + i
+                ) := memory_word_read(i);
+            end loop;
 
             integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
 
@@ -895,6 +895,7 @@ package body CentralProcessingUnit_Package is
 
                         -- TODO: Encrypt again bit_buffer here --
                         Encrypt(integer_to_commit.bit_buffer);
+                        -- Do not add shifted bits here, since we write the full buffer --
                         memory_word_write <= integer_to_commit.bit_buffer(WORD_SIZE - 1 downto 0);
                         committing_write_memory <= true;
                         integer_to_commit.write_type.is_inside_read_phase := false;
@@ -908,10 +909,11 @@ package body CentralProcessingUnit_Package is
                         if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
                             memory_address_write <= integer_to_commit.address +
                                 integer_to_commit.bit_index - integer_to_commit.bit_shift;
-                            memory_word_write <= integer_to_commit.bit_buffer(
-                                integer_to_commit.bit_index + WORD_SIZE - 1 
-                                    downto integer_to_commit.bit_index
-                            );
+                            for i in WORD_SIZE - 1 downto 0 loop
+                                memory_word_write(i) <= integer_to_commit.bit_buffer(
+                                    integer_to_commit.bit_index + i
+                                );
+                            end loop;
                             integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
                             committing_write_memory <= true;
                             var_unit_state := UNIT_STATE_COMMITING_MEMORY;

@@ -16,13 +16,13 @@ entity CentralProcessingUnit is
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-    signal signal_unit_state: UNIT_STATE := UNIT_STATE_INSTRUCTION_PHASE;
+    signal signal_self_clock: boolean;
 
 begin
     ----------------------------------------------------------------------------
     -- Handle control unit states
     -- Feedback loop based on signal_unit_state FSM
-    process (signal_unit_state)
+    process (signal_self_clock)
         variable var_registers: REGISTERS_RECORD := 
             (general => (others => (others => '0')),
              special => (overflow_flag => false, 
@@ -42,7 +42,7 @@ begin
         -- second for the decode and execute phase.
         -- The second phase is for commiting if an integer needs to be read
         -- or written to a specific address.
-        case signal_unit_state is
+        case var_unit_state is
             when UNIT_STATE_INSTRUCTION_PHASE =>
                 case var_instruction_phase is
                     when INSTRUCTION_PHASE_FETCHING =>
@@ -87,7 +87,11 @@ begin
         end case;
 
         -- Do a feedback loop --
-        signal_unit_state <= var_unit_state;
+        if signal_self_clock then
+            signal_self_clock <= false;
+        else
+            signal_self_clock <= true;
+        end if;
     end process;
 
 end CentralProcessingUnit_Implementation;
