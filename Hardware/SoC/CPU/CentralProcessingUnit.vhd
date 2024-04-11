@@ -2,12 +2,15 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.CentralProcessingUnit_Package.all;
+-- use std.textio.all;
 
 entity CentralProcessingUnit is
     port
     (
-        committing_read_memory: inout boolean;
-        committing_write_memory: inout boolean;
+        controller_has_read_memory: in boolean;
+        controller_has_written_memory: in boolean;
+        committing_read_memory: out boolean;
+        committing_write_memory: out boolean;
         memory_address_read: out CPU_ADDRESS_TYPE;
         memory_address_write: out CPU_ADDRESS_TYPE;
         memory_word_read: in WORD_TYPE;
@@ -16,8 +19,7 @@ entity CentralProcessingUnit is
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-    signal signal_self_clock: boolean;
-
+    signal signal_self_clock: boolean := false;
 begin
     ----------------------------------------------------------------------------
     -- Handle control unit states
@@ -33,8 +35,30 @@ begin
         variable var_integer_to_commit: INTEGER_TO_COMMIT_TYPE;
         variable var_memory_mode_to_commit: MEMORY_MODE_TYPE;
         variable var_unit_state: UNIT_STATE;
+        variable internal_committing_read_memory: boolean := false;
+        variable internal_committing_write_memory: boolean := false;
+        -- variable debug_line: line;
     begin
-        ---------------------------------------------------------------------
+        -- Check if we have sent something to memory controller --
+        if controller_has_read_memory
+            or controller_has_written_memory
+            or internal_committing_read_memory
+            or internal_committing_write_memory then
+            -----------------------------------------------------------------------
+            -- Tell to the controller that we've finished to read/write memory.
+            -- We need to wait for the controller for us to set
+            -- both controller_has_written_memory and controller_has_read_memory
+            -- to false
+            if controller_has_read_memory and internal_committing_read_memory then
+                internal_committing_read_memory := false;
+            end if;
+
+            if controller_has_written_memory and internal_committing_write_memory then
+                internal_committing_write_memory := false;
+            end if;
+        end if;
+
+        ------------------------------------------------------------------------
         -- During instruction phase, there's no I/O for memory.
         -- Instead, it will be preparing data for I/O memory.
         -- During commiting phase, special logic will be applied for both
@@ -46,35 +70,44 @@ begin
             when UNIT_STATE_INSTRUCTION_PHASE =>
                 case var_instruction_phase is
                     when INSTRUCTION_PHASE_FETCHING =>
-                        AskFetchInstruction(committing_read_memory,
+                        AskFetchInstruction(internal_committing_read_memory,
                                             memory_address_read,
                                             var_registers,
                                             var_instruction_to_commit,
                                             var_unit_state);
+                                            -- write(debug_line, STRING'("UNIT_STATE_INSTRUCTION_PHASE => INSTRUCTION_PHASE_FETCHING"));
+                                            -- writeline(output, debug_line);
 
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
-                        DecodeAndExecuteInstruction(committing_read_memory,
+                        DecodeAndExecuteInstruction(internal_committing_read_memory,
                                                     memory_address_read,
                                                     var_instruction_to_commit,
                                                     var_registers,
                                                     var_integer_to_commit,
                                                     var_unit_state,
                                                     var_instruction_phase);
+                                                    -- write(debug_line, STRING'("UNIT_STATE_INSTRUCTION_PHASE => INSTRUCTION_PHASE_DECODE_AND_EXECUTE"));
+                                                    -- writeline(output, debug_line);
                 end case;
 
             when UNIT_STATE_COMMITING_MEMORY =>
                 case var_instruction_phase is
                     when INSTRUCTION_PHASE_FETCHING =>
-                        HandleFetchInstruction(committing_read_memory,
+                        HandleFetchInstruction(controller_has_read_memory,
+                                               internal_committing_read_memory,
                                                memory_address_read,
                                                memory_word_read,
                                                var_instruction_to_commit,
                                                var_unit_state,
                                                var_instruction_phase);
+                                            --    write(debug_line, STRING'("UNIT_STATE_COMMITING_MEMORY => INSTRUCTION_PHASE_FETCHING"));
+                                            --    writeline(output, debug_line);
 
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
-                        HandlePostExecution(committing_read_memory,
-                                            committing_write_memory,
+                        HandlePostExecution(controller_has_read_memory,
+                                            controller_has_written_memory,
+                                            internal_committing_read_memory,
+                                            internal_committing_write_memory,
                                             memory_address_read,
                                             memory_address_write,
                                             memory_word_read,
@@ -83,8 +116,19 @@ begin
                                             var_registers,
                                             var_unit_state,
                                             var_instruction_phase);
+                                            -- write(debug_line, STRING'("UNIT_STATE_COMMITING_MEMORY => INSTRUCTION_PHASE_DECODE_AND_EXECUTE => "));
+                                            -- if var_memory_mode_to_commit = MEMORY_MODE_READ then
+                                            --     write(debug_line, STRING'("MEMORY_MODE_READ"));
+                                            -- else
+                                            --     write(debug_line, STRING'("MEMORY_MODE_WRITE"));
+                                            -- end if;
+                                            -- writeline(output, debug_line);
                 end case;
         end case;
+
+        -- Assign ports --
+        committing_read_memory <= internal_committing_read_memory;
+        committing_write_memory <= internal_committing_write_memory;
 
         -- Do a feedback loop --
         if signal_self_clock then
