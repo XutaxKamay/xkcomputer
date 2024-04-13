@@ -19,12 +19,12 @@ entity CentralProcessingUnit is
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-    signal signal_self_clock: boolean := false;
+    signal internal_clock: boolean;
 begin
     ----------------------------------------------------------------------------
     -- Handle control unit states
     -- Feedback loop based on signal_unit_state FSM
-    process (signal_self_clock)
+    process (internal_clock)
         variable var_registers: REGISTERS_RECORD := 
             (general => (others => (others => '0')),
              special => (overflow_flag => false, 
@@ -130,13 +130,11 @@ begin
         committing_read_memory <= internal_committing_read_memory;
         committing_write_memory <= internal_committing_write_memory;
 
-        -- Do a feedback loop --
-        if signal_self_clock then
-            signal_self_clock <= false;
+        if internal_clock then
+            internal_clock <= false;
         else
-            signal_self_clock <= true;
+            internal_clock <= true;
         end if;
     end process;
 
 end CentralProcessingUnit_Implementation;
-    

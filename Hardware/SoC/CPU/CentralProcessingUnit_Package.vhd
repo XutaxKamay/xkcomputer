@@ -173,15 +173,15 @@ package CentralProcessingUnit_Package is
     constant ALIGN_SIZE: integer := IntegerMax(ENCRYPTED_CHUNK_SIZE, WORD_SIZE);
     subtype WORD_TYPE is BIT_VECTOR(WORD_SIZE - 1 downto 0);
 
-    -- Add a WORD_SIZE because we need to get the bits left too inside memory, even if we don't need those --
+    -- Add a ALIGN_SIZE because we need to get the bits left too inside memory, even if we don't need those --
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
-        + (ALIGN_SIZE - (INSTRUCTION_SIZE mod ALIGN_SIZE)) + WORD_SIZE;
+        + (ALIGN_SIZE - (INSTRUCTION_SIZE mod ALIGN_SIZE)) + ALIGN_SIZE;
     subtype INSTRUCTION_BIT_BUFFER is
         BIT_VECTOR(AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION - 1 downto 0);
 
-    -- Add a WORD_SIZE because we need to get the bits left too inside memory, even if we don't need those --
+    -- Add a ALIGN_SIZE because we need to get the bits left too inside memory, even if we don't need those --
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER: integer := CPU_INTEGER_TYPE_SIZE
-        + (ALIGN_SIZE - (CPU_INTEGER_TYPE_SIZE mod ALIGN_SIZE)) + WORD_SIZE;
+        + (ALIGN_SIZE - (CPU_INTEGER_TYPE_SIZE mod ALIGN_SIZE)) + ALIGN_SIZE;
     subtype INTEGER_BIT_BUFFER is BIT_VECTOR(AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INTEGER - 1 downto 0);
 
     -- Need specialized type for such fetchs --
@@ -607,17 +607,17 @@ package body CentralProcessingUnit_Package is
 
             when OPCODE_TYPE_READ =>
                 HandleMemoryALUOperations(MEMORY_MODE_READ,
-                                         decoded_instruction,
-                                         registers,
-                                         should_commit_memory,
-                                         integer_to_commit);
+                                          decoded_instruction,
+                                          registers,
+                                          should_commit_memory,
+                                          integer_to_commit);
 
             when OPCODE_TYPE_WRITE =>
                 HandleMemoryALUOperations(MEMORY_MODE_WRITE,
-                                         decoded_instruction,
-                                         registers,
-                                         should_commit_memory,
-                                         integer_to_commit);
+                                          decoded_instruction,
+                                          registers,
+                                          should_commit_memory,
+                                          integer_to_commit);
 
             when OPCODE_TYPE_IS_BIGGER =>
                 operation_type := ALU_OPERATION_TYPE_BIGGER;
