@@ -116,6 +116,7 @@ package CentralProcessingUnit_Package is
     subtype REGISTER_INDEX_TYPE is unsigned(3 downto 0);
     constant REGISTER_INDEX_TYPE_SIZE: integer := REGISTER_INDEX_TYPE'length;
     type REGISTER_ARRAY is array(REGISTER_INDEX_TYPE'high - 1 downto 0) of CPU_INTEGER_TYPE;
+    subtype REGISTER_INTEGER_TYPE is integer range REGISTER_INDEX_TYPE'high - 1 downto 0;
 
     type SPECIAL_REGISTERS is record
         overflow_flag: boolean;
@@ -172,6 +173,7 @@ package CentralProcessingUnit_Package is
     constant WORD_SIZE: integer := ENCRYPTED_CHUNK_SIZE;
     constant ALIGN_SIZE: integer := IntegerMax(ENCRYPTED_CHUNK_SIZE, WORD_SIZE);
     subtype WORD_TYPE is BIT_VECTOR(WORD_SIZE - 1 downto 0);
+    subtype WORD_INTEGER_TYPE is integer range WORD_SIZE - 1 downto 0;
 
     -- Add a ALIGN_SIZE because we need to get the bits left too inside memory, even if we don't need those --
     constant AMOUNT_OF_BITS_FOR_FULL_FETCH_FROM_WORDS_FOR_INSTRUCTION: integer := INSTRUCTION_SIZE
@@ -188,9 +190,8 @@ package CentralProcessingUnit_Package is
     type COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE is record
         address: CPU_ADDRESS_TYPE;
         bit_buffer: INSTRUCTION_BIT_BUFFER;
-        bit_count: integer;
-        bit_index: integer;
-        bit_shift: integer;
+        bit_index: integer range INSTRUCTION_BIT_BUFFER'length downto 0;
+        bit_shift: WORD_INTEGER_TYPE;
     end record;
 
     type COMMIT_READ_WORD_TYPE is record
@@ -208,9 +209,8 @@ package CentralProcessingUnit_Package is
         read_type: COMMIT_READ_WORD_TYPE;
         write_type: COMMIT_WRITE_WORD_TYPE;
         bit_buffer: INTEGER_BIT_BUFFER;
-        bit_count: integer;
-        bit_index: integer;
-        bit_shift: integer;
+        bit_index: integer range INTEGER_BIT_BUFFER'length downto 0;
+        bit_shift: WORD_INTEGER_TYPE;
     end record;
 
     -- b392387fe1c4e11afb34f1ca52261c26 --
@@ -401,7 +401,7 @@ package body CentralProcessingUnit_Package is
             when ALU_OPERATION_INTEGER_ADD =>
                 integer_out.value := resize(temporary_add_resulting_integer, ALU_INTEGER_IN_TYPE_SIZE);
 
-                if temporary_add_resulting_integer > ALU_INTEGER_IN_TYPE'high
+                if temporary_add_resulting_integer >= ALU_INTEGER_IN_TYPE'high
                     or temporary_add_resulting_integer < ALU_INTEGER_IN_TYPE'low
                     or division_by_zero then
                     integer_out.overflow := true;
@@ -412,7 +412,7 @@ package body CentralProcessingUnit_Package is
             when ALU_OPERATION_INTEGER_MULTIPLY =>
                 integer_out.value := resize(temporary_multiply_resulting_integer, ALU_INTEGER_IN_TYPE_SIZE);
 
-                if temporary_multiply_resulting_integer > ALU_INTEGER_IN_TYPE'high
+                if temporary_multiply_resulting_integer >= ALU_INTEGER_IN_TYPE'high
                     or temporary_multiply_resulting_integer < ALU_INTEGER_IN_TYPE'low
                     or division_by_zero then
                     integer_out.overflow := true;
@@ -434,8 +434,8 @@ package body CentralProcessingUnit_Package is
         should_commit_memory: inout boolean;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     ) is
-        variable register_left_index: integer;
-        variable register_right_index: integer;
+        variable register_left_index: REGISTER_INTEGER_TYPE;
+        variable register_right_index: REGISTER_INTEGER_TYPE;
     begin
         should_commit_memory := true;
         integer_to_commit.mode := mode;
@@ -541,8 +541,8 @@ package body CentralProcessingUnit_Package is
         variable is_alu_operation_type: boolean := false;
         variable is_alu_operation_condition_flag_type: boolean := false;
         variable is_jumping: boolean := false;
-        variable register_left_index: integer;
-        variable register_right_index: integer;
+        variable register_left_index: REGISTER_INTEGER_TYPE;
+        variable register_right_index: REGISTER_INTEGER_TYPE;
 
     begin
         register_left_index := to_integer(decoded_instruction.operand_left.register_index);
@@ -705,12 +705,10 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE
     ) is
-        variable bit_shift: integer := to_integer(registers.special.program_counter mod WORD_SIZE);
     begin
         instruction_to_commit.address := registers.special.program_counter;
-        instruction_to_commit.bit_count := 0;
         instruction_to_commit.bit_index := 0;
-        instruction_to_commit.bit_shift := bit_shift;
+        instruction_to_commit.bit_shift := to_integer(registers.special.program_counter mod WORD_SIZE);
         memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift;
         committing_read_memory := true;
         var_unit_state := UNIT_STATE_COMMITING_MEMORY;
@@ -738,18 +736,8 @@ package body CentralProcessingUnit_Package is
 
             instruction_to_commit.bit_index := instruction_to_commit.bit_index + WORD_SIZE;
 
-            ---------------------------------------------------------------------------------
-            -- Increment to WORD_SIZE - shift,
-            -- the shift is used so we're sure that we got the exact number of bits we want
-            -- This is only needed the first time though
-            if instruction_to_commit.bit_count = 0 then
-                instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_SIZE - instruction_to_commit.bit_shift;
-            else
-                instruction_to_commit.bit_count := instruction_to_commit.bit_count + WORD_SIZE;
-            end if;
-
             -- Do we keep fetching ? --
-            if instruction_to_commit.bit_count < INSTRUCTION_SIZE then
+            if instruction_to_commit.bit_index < INSTRUCTION_BIT_BUFFER'length then
                 memory_address_read <= instruction_to_commit.address 
                     - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
                 committing_read_memory := true;
@@ -797,7 +785,6 @@ package body CentralProcessingUnit_Package is
 
         -- Should we commit memory before going on another instruction ? --
         if should_commit_memory then
-            integer_to_commit.bit_count := 0;
             integer_to_commit.bit_index := 0;
             integer_to_commit.bit_shift := to_integer(integer_to_commit.address mod WORD_SIZE);
             integer_to_commit.write_type.is_inside_read_phase := true;
@@ -841,14 +828,8 @@ package body CentralProcessingUnit_Package is
 
             integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
 
-            if integer_to_commit.bit_count = 0 then
-                integer_to_commit.bit_count := integer_to_commit.bit_count + WORD_SIZE - integer_to_commit.bit_shift;
-            else
-                integer_to_commit.bit_count := integer_to_commit.bit_count + WORD_SIZE;
-            end if;
-
             -- Do we keep fetching ? --
-            if integer_to_commit.bit_count < CPU_INTEGER_TYPE_SIZE then
+            if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
                 memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
                 committing_read_memory := true;
             else
@@ -883,7 +864,7 @@ package body CentralProcessingUnit_Package is
                                     integer_to_commit);
 
                     -- Did we finish to get the word ? --
-                    if integer_to_commit.bit_count >= CPU_INTEGER_TYPE_SIZE then
+                    if integer_to_commit.bit_index >= INTEGER_BIT_BUFFER'length then
                         -- Stop here and ask another instruction while setting the register --
                         for i in CPU_INTEGER_TYPE_SIZE - 1 downto 0 loop
                             registers.general(to_integer(integer_to_commit.read_type.register_index))(i)
@@ -912,7 +893,7 @@ package body CentralProcessingUnit_Package is
                                     integer_to_commit);
 
                     -- Do we still need to be in read phase ? --
-                    if integer_to_commit.bit_count >= CPU_INTEGER_TYPE_SIZE then
+                    if integer_to_commit.bit_index >= INTEGER_BIT_BUFFER'length then
                         -- Then prepare the integer to write --
                         for i in CPU_INTEGER_TYPE_SIZE - 1 downto 0 loop
                             integer_to_commit.bit_buffer(
@@ -940,7 +921,7 @@ package body CentralProcessingUnit_Package is
                 else
                     -- Check if we have commited memory --
                     if not committing_write_memory and not controller_has_written_memory then
-                        if integer_to_commit.bit_index < CPU_INTEGER_TYPE_SIZE then
+                        if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
                             memory_address_write <= integer_to_commit.address +
                                 integer_to_commit.bit_index - integer_to_commit.bit_shift;
 
