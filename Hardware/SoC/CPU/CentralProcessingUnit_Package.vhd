@@ -6,10 +6,18 @@ use work.Maths_Package.all;
 
 package CentralProcessingUnit_Package is
 
+    -----------------------------------------------------------------------------------
+    -- ° Stage 1: UNIT_STATE_INSTRUCTION_PHASE & INSTRUCTION_PHASE_FETCHING
+    -- ° Stage 2: UNIT_STATE_COMMITTING_MEMORY & INSTRUCTION_PHASE_FETCHING
+    -- ° Stage 3: UNIT_STATE_INSTRUCTION_PHASE & INSTRUCTION_PHASE_DECODE_AND_EXECUTE
+    -- ° Stage 4: UNIT_STATE_COMMITTING_MEMORY & INSTRUCTION_PHASE_DECODE_AND_EXECUTE
+    -- Step 4 isn't always needed, sometimes we operate directly on registers.
+    -- ° Repeat stage 1.
+
     type UNIT_STATE is
     (
         UNIT_STATE_INSTRUCTION_PHASE,
-        UNIT_STATE_COMMITING_MEMORY
+        UNIT_STATE_COMMITTING_MEMORY
     );
 
     type INSTRUCTION_PHASE is
@@ -228,6 +236,30 @@ package CentralProcessingUnit_Package is
     );
 
     -- Function and procedures --
+    procedure Stage1
+    (
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
+    );
+
+    procedure Stage2
+    (
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
+    );
+
+    procedure Stage3
+    (
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
+    );
+
+    procedure Stage4
+    (
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
+    );
+
     function HandleALUOperations
     (
         operation_type: ALU_OPERATION_TYPE;
@@ -263,7 +295,8 @@ package CentralProcessingUnit_Package is
         memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        var_unit_state: inout UNIT_STATE
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
     );
 
     procedure HandleFetchInstruction
@@ -307,6 +340,45 @@ package CentralProcessingUnit_Package is
 end CentralProcessingUnit_Package;
 
 package body CentralProcessingUnit_Package is
+    procedure Stage1
+    (
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
+    ) is
+    begin
+        var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
+        var_unit_state := UNIT_STATE_INSTRUCTION_PHASE;
+    end Stage1;
+
+    procedure Stage2
+    (
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
+    ) is
+    begin
+        var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
+        var_unit_state := UNIT_STATE_COMMITTING_MEMORY;
+    end Stage2;
+
+    procedure Stage3
+    (
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
+    ) is
+    begin
+        var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
+        var_unit_state := UNIT_STATE_INSTRUCTION_PHASE;
+    end Stage3;
+
+    procedure Stage4
+    (
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
+    ) is
+    begin
+        var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
+        var_unit_state := UNIT_STATE_COMMITTING_MEMORY;
+    end Stage4;
 
     function HandleALUOperations
     (
@@ -703,7 +775,8 @@ package body CentralProcessingUnit_Package is
         memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        var_unit_state: inout UNIT_STATE
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: inout INSTRUCTION_PHASE
     ) is
     begin
         instruction_to_commit.address := registers.special.program_counter;
@@ -711,7 +784,7 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit.bit_shift := to_integer(registers.special.program_counter mod WORD_SIZE);
         memory_address_read := instruction_to_commit.address - instruction_to_commit.bit_shift;
         committing_read_memory := true;
-        var_unit_state := UNIT_STATE_COMMITING_MEMORY;
+        Stage2(var_unit_state, var_instruction_phase);
     end AskFetchInstruction;
 
     procedure HandleFetchInstruction
@@ -741,17 +814,16 @@ package body CentralProcessingUnit_Package is
                 memory_address_read := instruction_to_commit.address 
                     - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
                 committing_read_memory := true;
-                var_unit_state := UNIT_STATE_COMMITING_MEMORY;
+                Stage2(var_unit_state, var_instruction_phase);
             else
                 -- TODO: Decrypt memory here --
                 Decrypt(instruction_to_commit.bit_buffer);
                 -- We fetched the whole instruction, get on instruction phase --
-                var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
-                var_unit_state := UNIT_STATE_INSTRUCTION_PHASE;
+                Stage3(var_unit_state, var_instruction_phase);
             end if;
         else
-            -- Keep waiting for memory --
-            var_unit_state := UNIT_STATE_COMMITING_MEMORY;
+            -- Keep fetching instruction --
+            Stage2(var_unit_state, var_instruction_phase);
         end if;
     end HandleFetchInstruction;
 
@@ -799,11 +871,10 @@ package body CentralProcessingUnit_Package is
             -- of encryption/decryption, it is.
             -- So it starts with reading memory anyway.
             committing_read_memory := true;
-            var_unit_state := UNIT_STATE_COMMITING_MEMORY;
+            Stage4(var_unit_state, var_instruction_phase);
         -- Otherwise fetch again another instruction --
         else
-            var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
-            var_unit_state := UNIT_STATE_INSTRUCTION_PHASE;
+            Stage1(var_unit_state, var_instruction_phase);
         end if;
     end DecodeAndExecuteInstruction;
 
@@ -877,11 +948,10 @@ package body CentralProcessingUnit_Package is
 
                         -- TODO: Do not leak information for encrypted memory --
                         Encrypt(integer_to_commit.bit_buffer);
-                        var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
-                        var_unit_state := UNIT_STATE_INSTRUCTION_PHASE;
+                        Stage1(var_unit_state, var_instruction_phase);
                     else
                         -- Keep reading memory --
-                        var_unit_state := UNIT_STATE_COMMITING_MEMORY;
+                        Stage4(var_unit_state, var_instruction_phase);
                     end if;
 
             when MEMORY_MODE_WRITE =>
@@ -917,7 +987,7 @@ package body CentralProcessingUnit_Package is
                     end if;
 
                     -- Keep commiting --
-                    var_unit_state := UNIT_STATE_COMMITING_MEMORY;
+                    Stage4(var_unit_state, var_instruction_phase);
                 else
                     -- Check if we have commited memory --
                     if not committing_write_memory and not controller_has_written_memory then
@@ -933,15 +1003,14 @@ package body CentralProcessingUnit_Package is
 
                             integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
                             committing_write_memory := true;
-                            var_unit_state := UNIT_STATE_COMMITING_MEMORY;
+                            Stage4(var_unit_state, var_instruction_phase);
                         else
                             -- Return and ask another instruction --
-                            var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
-                            var_unit_state := UNIT_STATE_INSTRUCTION_PHASE;
+                            Stage1(var_unit_state, var_instruction_phase);
                         end if;
                     else
                         -- Keep commiting --
-                        var_unit_state := UNIT_STATE_COMMITING_MEMORY;
+                        Stage4(var_unit_state, var_instruction_phase);
                     end if;
                 end if;
         end case;

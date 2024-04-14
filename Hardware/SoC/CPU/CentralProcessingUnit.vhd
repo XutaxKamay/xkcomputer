@@ -31,10 +31,10 @@ begin
                          condition_flag => false,
                          program_counter => (others => '0')));
         variable var_instruction_phase: INSTRUCTION_PHASE := INSTRUCTION_PHASE_FETCHING;
+        variable var_unit_state: UNIT_STATE := UNIT_STATE_INSTRUCTION_PHASE;
         variable var_instruction_to_commit: COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         variable var_integer_to_commit: INTEGER_TO_COMMIT_TYPE;
         variable var_memory_mode_to_commit: MEMORY_MODE_TYPE;
-        variable var_unit_state: UNIT_STATE;
 
         -- Internal state --
         variable internal_committing_read_memory: boolean := false;
@@ -74,15 +74,18 @@ begin
         case var_unit_state is
             when UNIT_STATE_INSTRUCTION_PHASE =>
                 case var_instruction_phase is
+                    -- Stage 1 --
                     when INSTRUCTION_PHASE_FETCHING =>
                         AskFetchInstruction(internal_committing_read_memory,
                                             internal_memory_address_read,
                                             var_registers,
                                             var_instruction_to_commit,
-                                            var_unit_state);
+                                            var_unit_state,
+                                            var_instruction_phase);
                                             -- write(debug_line, STRING'("UNIT_STATE_INSTRUCTION_PHASE => INSTRUCTION_PHASE_FETCHING"));
                                             -- writeline(output, debug_line);
 
+                    -- Stage 3 --
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
                         DecodeAndExecuteInstruction(internal_committing_read_memory,
                                                     internal_memory_address_read,
@@ -95,8 +98,9 @@ begin
                                                     -- writeline(output, debug_line);
                 end case;
 
-            when UNIT_STATE_COMMITING_MEMORY =>
+            when UNIT_STATE_COMMITTING_MEMORY =>
                 case var_instruction_phase is
+                    -- Stage 2 --
                     when INSTRUCTION_PHASE_FETCHING =>
                         HandleFetchInstruction(controller_has_read_memory,
                                                internal_committing_read_memory,
@@ -105,9 +109,9 @@ begin
                                                var_instruction_to_commit,
                                                var_unit_state,
                                                var_instruction_phase);
-                                            --    write(debug_line, STRING'("UNIT_STATE_COMMITING_MEMORY => INSTRUCTION_PHASE_FETCHING"));
+                                            --    write(debug_line, STRING'("UNIT_STATE_COMMITTING_MEMORY => INSTRUCTION_PHASE_FETCHING"));
                                             --    writeline(output, debug_line);
-
+                    -- Stage 4 --
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
                         HandlePostExecution(controller_has_read_memory,
                                             controller_has_written_memory,
@@ -121,7 +125,7 @@ begin
                                             var_registers,
                                             var_unit_state,
                                             var_instruction_phase);
-                                            -- write(debug_line, STRING'("UNIT_STATE_COMMITING_MEMORY => INSTRUCTION_PHASE_DECODE_AND_EXECUTE => "));
+                                            -- write(debug_line, STRING'("UNIT_STATE_COMMITTING_MEMORY => INSTRUCTION_PHASE_DECODE_AND_EXECUTE => "));
                                             -- if var_memory_mode_to_commit = MEMORY_MODE_READ then
                                             --     write(debug_line, STRING'("MEMORY_MODE_READ"));
                                             -- else
