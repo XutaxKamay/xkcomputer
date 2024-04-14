@@ -236,6 +236,21 @@ package CentralProcessingUnit_Package is
     );
 
     -- Function and procedures --
+
+    -- Checks memory commits from memory controller --
+    function IsReadyToCommitMemory
+    (
+        signal controller_has_memory: boolean;
+        signal committing_memory: boolean
+    ) return boolean;
+
+    procedure CheckMemoryCommit
+    (
+        signal controller_has_memory: in boolean;
+        signal committing_memory: inout boolean
+    );
+
+    -- Switch to different stages --
     procedure Stage1
     (
         var_unit_state: inout UNIT_STATE;
@@ -291,31 +306,58 @@ package CentralProcessingUnit_Package is
 
     procedure AskFetchInstruction
     (
-        committing_read_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
+        signal committing_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE;
         var_instruction_phase: inout INSTRUCTION_PHASE
     );
 
+    procedure DecodeAndExecuteInstruction
+    (
+        signal committing_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
+        registers: inout REGISTERS_RECORD;
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: out INSTRUCTION_PHASE
+    );
+
     procedure HandleFetchInstruction
     (
         signal controller_has_read_memory: in boolean;
-        committing_read_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
+        signal committing_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
     );
 
-    procedure DecodeAndExecuteInstruction
+    procedure HandleMemoryRead
     (
-        committing_read_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
-        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
+        signal controller_has_read_memory: in boolean;
+        signal committing_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        signal memory_word_read: in WORD_TYPE;
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: out INSTRUCTION_PHASE
+    );
+
+    procedure HandleMemoryWrite
+    (
+        signal controller_has_read_memory: in boolean;
+        signal controller_has_written_memory: in boolean;
+        signal committing_read_memory: inout boolean;
+        signal committing_write_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        signal memory_address_write: out CPU_ADDRESS_TYPE;
+        signal memory_word_read: in WORD_TYPE;
+        signal memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         var_unit_state: inout UNIT_STATE;
         var_instruction_phase: out INSTRUCTION_PHASE
@@ -325,12 +367,12 @@ package CentralProcessingUnit_Package is
     (
         signal controller_has_read_memory: in boolean;
         signal controller_has_written_memory: in boolean;
-        committing_read_memory: inout boolean;
-        committing_write_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
-        memory_address_write: out CPU_ADDRESS_TYPE;
+        signal committing_read_memory: inout boolean;
+        signal committing_write_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
-        memory_word_write: out WORD_TYPE;
+        signal memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
         var_unit_state: inout UNIT_STATE;
@@ -340,6 +382,31 @@ package CentralProcessingUnit_Package is
 end CentralProcessingUnit_Package;
 
 package body CentralProcessingUnit_Package is
+
+    function IsReadyToCommitMemory
+    (
+        signal controller_has_memory: boolean;
+        signal committing_memory: boolean
+    ) return boolean is
+    begin
+        return not controller_has_memory and not committing_memory;
+    end IsReadyToCommitMemory;
+
+    procedure CheckMemoryCommit
+    (
+        signal controller_has_memory: in boolean;
+        signal committing_memory: inout boolean
+    ) is
+    begin
+        -----------------------------------------------------------------------
+        -- Tell to the controller that we've finished to read/write memory.
+        -- We need to wait for the controller for us to false
+        -- controller_has_memory
+        if controller_has_memory and committing_memory then
+            committing_memory <= false;
+        end if;
+    end CheckMemoryCommit;
+
     procedure Stage1
     (
         var_unit_state: inout UNIT_STATE;
@@ -771,8 +838,8 @@ package body CentralProcessingUnit_Package is
 
     procedure AskFetchInstruction
     (
-        committing_read_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
+        signal committing_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE;
@@ -782,16 +849,16 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit.address := registers.special.program_counter;
         instruction_to_commit.bit_index := 0;
         instruction_to_commit.bit_shift := to_integer(registers.special.program_counter mod WORD_SIZE);
-        memory_address_read := instruction_to_commit.address - instruction_to_commit.bit_shift;
-        committing_read_memory := true;
+        memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift;
+        committing_read_memory <= true;
         Stage2(var_unit_state, var_instruction_phase);
     end AskFetchInstruction;
 
     procedure HandleFetchInstruction
     (
         signal controller_has_read_memory: in boolean;
-        committing_read_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
+        signal committing_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE;
@@ -799,7 +866,7 @@ package body CentralProcessingUnit_Package is
     ) is
     begin
         -- Wait for memory commit --
-        if not committing_read_memory and not controller_has_read_memory then
+        if IsReadyToCommitMemory(controller_has_read_memory, committing_read_memory) then
             -- Store the bits inside a buffer, they will be decoded later --
             for i in WORD_SIZE - 1 downto 0 loop
                 instruction_to_commit.bit_buffer(
@@ -811,26 +878,25 @@ package body CentralProcessingUnit_Package is
 
             -- Do we keep fetching ? --
             if instruction_to_commit.bit_index < INSTRUCTION_BIT_BUFFER'length then
-                memory_address_read := instruction_to_commit.address 
+                memory_address_read <= instruction_to_commit.address 
                     - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
-                committing_read_memory := true;
+                committing_read_memory <= true;
                 Stage2(var_unit_state, var_instruction_phase);
             else
-                -- TODO: Decrypt memory here --
-                Decrypt(instruction_to_commit.bit_buffer);
                 -- We fetched the whole instruction, get on instruction phase --
                 Stage3(var_unit_state, var_instruction_phase);
             end if;
         else
             -- Keep fetching instruction --
+            CheckMemoryCommit(controller_has_read_memory, committing_read_memory);
             Stage2(var_unit_state, var_instruction_phase);
         end if;
     end HandleFetchInstruction;
 
     procedure DecodeAndExecuteInstruction
     (
-        committing_read_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
+        signal committing_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
@@ -841,6 +907,9 @@ package body CentralProcessingUnit_Package is
         variable decoded_instruction: INSTRUCTION;
         variable should_commit_memory: boolean := false;
     begin
+        -- TODO: Decrypt memory here --
+        Decrypt(instruction_to_commit.bit_buffer);
+
         -- Decode instruction --
         for i in INSTRUCTION_SIZE - 1 downto 0 loop
             encoded_instruction(i) := instruction_to_commit.bit_buffer(
@@ -860,7 +929,7 @@ package body CentralProcessingUnit_Package is
             integer_to_commit.bit_index := 0;
             integer_to_commit.bit_shift := to_integer(integer_to_commit.address mod WORD_SIZE);
             integer_to_commit.write_type.is_inside_read_phase := true;
-            memory_address_read := integer_to_commit.address - integer_to_commit.bit_shift;
+            memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift;
             --------------------------------------------------
             -- Doesn't matter if it's a read or a write,
             -- we always need to read first the word anyway.
@@ -870,7 +939,7 @@ package body CentralProcessingUnit_Package is
             -- Normally, this isn't needed, but in case
             -- of encryption/decryption, it is.
             -- So it starts with reading memory anyway.
-            committing_read_memory := true;
+            committing_read_memory <= true;
             Stage4(var_unit_state, var_instruction_phase);
         -- Otherwise fetch again another instruction --
         else
@@ -878,18 +947,20 @@ package body CentralProcessingUnit_Package is
         end if;
     end DecodeAndExecuteInstruction;
 
-    -- Mostly same logic as HandleFetchInstruction --
-    procedure HandleFetchWord
+    procedure HandleMemoryRead
     (
         signal controller_has_read_memory: in boolean;
-        committing_read_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
+        signal committing_read_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
-        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
+        registers: inout REGISTERS_RECORD;
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: out INSTRUCTION_PHASE
     ) is
     begin
         -- Has something been fetch yet ? --
-        if not committing_read_memory and not controller_has_read_memory then
+        if IsReadyToCommitMemory(controller_has_read_memory, committing_read_memory) then
             -- Gotcha, need to store into buffer --
             for i in WORD_SIZE - 1 downto 0 loop
                 integer_to_commit.bit_buffer(
@@ -901,25 +972,137 @@ package body CentralProcessingUnit_Package is
 
             -- Do we keep fetching ? --
             if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                memory_address_read := integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
-                committing_read_memory := true;
+                memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
+                committing_read_memory <= true;
+                Stage4(var_unit_state, var_instruction_phase);
             else
                 -- TODO: Decrypt --
                 Decrypt(integer_to_commit.bit_buffer);
+
+                -- Stop here and ask another instruction while setting the register --
+                for i in CPU_INTEGER_TYPE_SIZE - 1 downto 0 loop
+                    registers.general(to_integer(integer_to_commit.read_type.register_index))(i)
+                        := to_stdulogic(
+                                integer_to_commit.bit_buffer(
+                                    i + integer_to_commit.bit_shift
+                                )
+                            );
+                end loop;
+
+                -- TODO: Do not leak information for encrypted memory --
+                Encrypt(integer_to_commit.bit_buffer);
+                Stage1(var_unit_state, var_instruction_phase);
             end if;
+        else
+            -- Keep reading memory --
+            CheckMemoryCommit(controller_has_read_memory, committing_read_memory);
+            Stage4(var_unit_state, var_instruction_phase);
         end if;
-    end HandleFetchWord;
+    end HandleMemoryRead;
+
+    procedure HandleMemoryWrite
+    (
+        signal controller_has_read_memory: in boolean;
+        signal controller_has_written_memory: in boolean;
+        signal committing_read_memory: inout boolean;
+        signal committing_write_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        signal memory_address_write: out CPU_ADDRESS_TYPE;
+        signal memory_word_read: in WORD_TYPE;
+        signal memory_word_write: out WORD_TYPE;
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
+        var_unit_state: inout UNIT_STATE;
+        var_instruction_phase: out INSTRUCTION_PHASE
+    ) is
+    begin
+        -- Always read phase first, we need to retrieve the old words before writting a new integer into it --
+        if integer_to_commit.write_type.is_inside_read_phase then
+            -- Check if can commit memory --
+            if IsReadyToCommitMemory(controller_has_read_memory, committing_read_memory) then
+                -- Gotcha, need to store into buffer --
+                for i in WORD_SIZE - 1 downto 0 loop
+                    integer_to_commit.bit_buffer(
+                        integer_to_commit.bit_index + i
+                    ) := memory_word_read(i);
+                end loop;
+
+                integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
+
+                -- Do we keep fetching the old integer ? --
+                if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
+                    memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
+                    committing_read_memory <= true;
+                -- Once we have read the old integer, start to write the new one and commit --
+                else
+                    -- TODO: Decrypt --
+                    Decrypt(integer_to_commit.bit_buffer);
+
+                    -- Then prepare the integer to write --
+                    for i in CPU_INTEGER_TYPE_SIZE - 1 downto 0 loop
+                        integer_to_commit.bit_buffer(
+                            i + integer_to_commit.bit_shift
+                        ) := to_bit(integer_to_commit.write_type.integer_value(i));
+                    end loop;
+
+                    -- TODO: Encrypt again bit_buffer here --
+                    Encrypt(integer_to_commit.bit_buffer);
+
+                    integer_to_commit.bit_index := WORD_SIZE;
+                    memory_address_write <= integer_to_commit.address - integer_to_commit.bit_shift;
+
+                    -- Do not add shifted bits here, since we write the full buffer --
+                    for i in WORD_SIZE - 1 downto 0 loop
+                        memory_word_write(i) <= integer_to_commit.bit_buffer(i);
+                    end loop;
+
+                    integer_to_commit.write_type.is_inside_read_phase := false;
+                    committing_write_memory <= true;
+                end if;
+            else
+                -- Keep commiting --
+                CheckMemoryCommit(controller_has_read_memory, committing_read_memory);
+            end if;
+
+            -- We stay on stage 4 no matter what anyway --
+            Stage4(var_unit_state, var_instruction_phase);
+        else
+            -- Check if we have commited memory --
+            if IsReadyToCommitMemory(controller_has_written_memory, committing_write_memory) then
+                if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
+                    memory_address_write <= integer_to_commit.address +
+                        integer_to_commit.bit_index - integer_to_commit.bit_shift;
+
+                    for i in WORD_SIZE - 1 downto 0 loop
+                        memory_word_write(i) <= integer_to_commit.bit_buffer(
+                            i + integer_to_commit.bit_index
+                        );
+                    end loop;
+
+                    integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
+                    Stage4(var_unit_state, var_instruction_phase);
+                    committing_write_memory <= true;
+                else
+                    -- Loop again through stage 1 and ask another instruction --
+                    Stage1(var_unit_state, var_instruction_phase);
+                end if;
+            else
+                -- Keep commiting --
+                CheckMemoryCommit(controller_has_written_memory, committing_write_memory);
+                Stage4(var_unit_state, var_instruction_phase);
+            end if;
+    end if;
+    end HandleMemoryWrite;
 
     procedure HandlePostExecution
     (
         signal controller_has_read_memory: in boolean;
         signal controller_has_written_memory: in boolean;
-        committing_read_memory: inout boolean;
-        committing_write_memory: inout boolean;
-        memory_address_read: out CPU_ADDRESS_TYPE;
-        memory_address_write: out CPU_ADDRESS_TYPE;
+        signal committing_read_memory: inout boolean;
+        signal committing_write_memory: inout boolean;
+        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
-        memory_word_write: out WORD_TYPE;
+        signal memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
         var_unit_state: inout UNIT_STATE;
@@ -928,91 +1111,26 @@ package body CentralProcessingUnit_Package is
     begin
         case integer_to_commit.mode is
             when MEMORY_MODE_READ =>
-                    HandleFetchWord(controller_has_read_memory,
-                                    committing_read_memory,
-                                    memory_address_read,
-                                    memory_word_read,
-                                    integer_to_commit);
-
-                    -- Did we finish to get the word ? --
-                    if integer_to_commit.bit_index >= INTEGER_BIT_BUFFER'length then
-                        -- Stop here and ask another instruction while setting the register --
-                        for i in CPU_INTEGER_TYPE_SIZE - 1 downto 0 loop
-                            registers.general(to_integer(integer_to_commit.read_type.register_index))(i)
-                                := to_stdulogic(
-                                        integer_to_commit.bit_buffer(
-                                            i + integer_to_commit.bit_shift
-                                        )
-                                    );
-                        end loop;
-
-                        -- TODO: Do not leak information for encrypted memory --
-                        Encrypt(integer_to_commit.bit_buffer);
-                        Stage1(var_unit_state, var_instruction_phase);
-                    else
-                        -- Keep reading memory --
-                        Stage4(var_unit_state, var_instruction_phase);
-                    end if;
-
+                HandleMemoryRead(controller_has_read_memory,
+                                 committing_read_memory,
+                                 memory_address_read,
+                                 memory_word_read,
+                                 integer_to_commit,
+                                 registers,
+                                 var_unit_state,
+                                 var_instruction_phase);
             when MEMORY_MODE_WRITE =>
-                if integer_to_commit.write_type.is_inside_read_phase then
-                    HandleFetchWord(controller_has_read_memory,
-                                    committing_read_memory,
-                                    memory_address_read,
-                                    memory_word_read,
-                                    integer_to_commit);
-
-                    -- Do we still need to be in read phase ? --
-                    if integer_to_commit.bit_index >= INTEGER_BIT_BUFFER'length then
-                        -- Then prepare the integer to write --
-                        for i in CPU_INTEGER_TYPE_SIZE - 1 downto 0 loop
-                            integer_to_commit.bit_buffer(
-                                i + integer_to_commit.bit_shift
-                            ) := to_bit(integer_to_commit.write_type.integer_value(i));
-                        end loop;
-
-                        integer_to_commit.bit_index := WORD_SIZE;
-                        memory_address_write := integer_to_commit.address - integer_to_commit.bit_shift;
-
-                        -- TODO: Encrypt again bit_buffer here --
-                        Encrypt(integer_to_commit.bit_buffer);
-
-                        -- Do not add shifted bits here, since we write the full buffer --
-                        for i in WORD_SIZE - 1 downto 0 loop
-                            memory_word_write(i) := integer_to_commit.bit_buffer(i);
-                        end loop;
-
-                        committing_write_memory := true;
-                        integer_to_commit.write_type.is_inside_read_phase := false;
-                    end if;
-
-                    -- Keep commiting --
-                    Stage4(var_unit_state, var_instruction_phase);
-                else
-                    -- Check if we have commited memory --
-                    if not committing_write_memory and not controller_has_written_memory then
-                        if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                            memory_address_write := integer_to_commit.address +
-                                integer_to_commit.bit_index - integer_to_commit.bit_shift;
-
-                            for i in WORD_SIZE - 1 downto 0 loop
-                                memory_word_write(i) := integer_to_commit.bit_buffer(
-                                    i + integer_to_commit.bit_index
-                                );
-                            end loop;
-
-                            integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
-                            committing_write_memory := true;
-                            Stage4(var_unit_state, var_instruction_phase);
-                        else
-                            -- Return and ask another instruction --
-                            Stage1(var_unit_state, var_instruction_phase);
-                        end if;
-                    else
-                        -- Keep commiting --
-                        Stage4(var_unit_state, var_instruction_phase);
-                    end if;
-                end if;
+                HandleMemoryWrite(controller_has_read_memory,
+                                  controller_has_written_memory,
+                                  committing_read_memory,
+                                  committing_write_memory,
+                                  memory_address_read,
+                                  memory_address_write,
+                                  memory_word_read,
+                                  memory_word_write,
+                                  integer_to_commit,
+                                  var_unit_state,
+                                  var_instruction_phase);
         end case;
     end HandlePostExecution;
 

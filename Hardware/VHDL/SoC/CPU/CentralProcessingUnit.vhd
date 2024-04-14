@@ -19,7 +19,13 @@ entity CentralProcessingUnit is
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-    signal internal_clock: boolean;
+    signal internal_clock: boolean := false;
+        -- Internal state --
+    signal internal_committing_read_memory: boolean := false;
+    signal internal_committing_write_memory: boolean := false;
+    signal internal_memory_address_read: CPU_ADDRESS_TYPE := (others => '0');
+    signal internal_memory_address_write: CPU_ADDRESS_TYPE := (others => '0');
+    signal internal_memory_word_write: WORD_TYPE := (others => '0');
 begin
     ----------------------------------------------------------------------------
     -- Handle control unit states
@@ -46,34 +52,8 @@ begin
              bit_index => 0,
              bit_shift => 0);
         variable var_memory_mode_to_commit: MEMORY_MODE_TYPE := MEMORY_MODE_READ;
-
-        -- Internal state --
-        variable internal_committing_read_memory: boolean := false;
-        variable internal_committing_write_memory: boolean := false;
-        variable internal_memory_address_read: CPU_ADDRESS_TYPE := (others => '0');
-        variable internal_memory_address_write: CPU_ADDRESS_TYPE := (others => '0');
-        variable internal_memory_word_write: WORD_TYPE := (others => '0');
         -- variable debug_line: line;
     begin
-        -- Check if we have sent something to memory controller --
-        if controller_has_read_memory
-            or controller_has_written_memory
-            or internal_committing_read_memory
-            or internal_committing_write_memory then
-            -----------------------------------------------------------------------
-            -- Tell to the controller that we've finished to read/write memory.
-            -- We need to wait for the controller for us to set
-            -- both controller_has_written_memory and controller_has_read_memory
-            -- to false
-            if controller_has_read_memory and internal_committing_read_memory then
-                internal_committing_read_memory := false;
-            end if;
-
-            if controller_has_written_memory and internal_committing_write_memory then
-                internal_committing_write_memory := false;
-            end if;
-        end if;
-
         ------------------------------------------------------------------------
         -- During instruction phase, there's no I/O for memory.
         -- Instead, it will be preparing data for I/O memory.
@@ -114,12 +94,12 @@ begin
                     -- Stage 2 --
                     when INSTRUCTION_PHASE_FETCHING =>
                         HandleFetchInstruction(controller_has_read_memory,
-                                               internal_committing_read_memory,
-                                               internal_memory_address_read,
-                                               memory_word_read,
-                                               var_instruction_to_commit,
-                                               var_unit_state,
-                                               var_instruction_phase);
+                                            internal_committing_read_memory,
+                                            internal_memory_address_read,
+                                            memory_word_read,
+                                            var_instruction_to_commit,
+                                            var_unit_state,
+                                            var_instruction_phase);
                                             --    write(debug_line, STRING'("UNIT_STATE_COMMITTING_MEMORY => INSTRUCTION_PHASE_FETCHING"));
                                             --    writeline(output, debug_line);
                     -- Stage 4 --
@@ -146,18 +126,18 @@ begin
                 end case;
         end case;
 
-        -- Assign ports --
-        committing_read_memory <= internal_committing_read_memory;
-        committing_write_memory <= internal_committing_write_memory;
-        memory_address_read <= internal_memory_address_read;
-        memory_address_write <= internal_memory_address_write;
-        memory_word_write <= internal_memory_word_write;
-
         if internal_clock then
             internal_clock <= false;
         else
             internal_clock <= true;
         end if;
     end process;
+
+    -- Assign ports --
+    committing_read_memory <= internal_committing_read_memory;
+    committing_write_memory <= internal_committing_write_memory;
+    memory_address_read <= internal_memory_address_read;
+    memory_address_write <= internal_memory_address_write;
+    memory_word_write <= internal_memory_word_write;
 
 end CentralProcessingUnit_Implementation;
