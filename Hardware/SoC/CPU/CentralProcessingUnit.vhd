@@ -9,11 +9,11 @@ entity CentralProcessingUnit is
     (
         controller_has_read_memory: in boolean;
         controller_has_written_memory: in boolean;
+        memory_word_read: in WORD_TYPE;
         committing_read_memory: out boolean;
         committing_write_memory: out boolean;
         memory_address_read: out CPU_ADDRESS_TYPE;
         memory_address_write: out CPU_ADDRESS_TYPE;
-        memory_word_read: in WORD_TYPE;
         memory_word_write: out WORD_TYPE
     );
 end CentralProcessingUnit;
@@ -35,8 +35,13 @@ begin
         variable var_integer_to_commit: INTEGER_TO_COMMIT_TYPE;
         variable var_memory_mode_to_commit: MEMORY_MODE_TYPE;
         variable var_unit_state: UNIT_STATE;
+
+        -- Internal state --
         variable internal_committing_read_memory: boolean := false;
         variable internal_committing_write_memory: boolean := false;
+        variable internal_memory_address_read: CPU_ADDRESS_TYPE := (others => '0');
+        variable internal_memory_address_write: CPU_ADDRESS_TYPE := (others => '0');
+        variable internal_memory_word_write: WORD_TYPE := (others => '0');
         -- variable debug_line: line;
     begin
         -- Check if we have sent something to memory controller --
@@ -71,7 +76,7 @@ begin
                 case var_instruction_phase is
                     when INSTRUCTION_PHASE_FETCHING =>
                         AskFetchInstruction(internal_committing_read_memory,
-                                            memory_address_read,
+                                            internal_memory_address_read,
                                             var_registers,
                                             var_instruction_to_commit,
                                             var_unit_state);
@@ -80,7 +85,7 @@ begin
 
                     when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
                         DecodeAndExecuteInstruction(internal_committing_read_memory,
-                                                    memory_address_read,
+                                                    internal_memory_address_read,
                                                     var_instruction_to_commit,
                                                     var_registers,
                                                     var_integer_to_commit,
@@ -95,7 +100,7 @@ begin
                     when INSTRUCTION_PHASE_FETCHING =>
                         HandleFetchInstruction(controller_has_read_memory,
                                                internal_committing_read_memory,
-                                               memory_address_read,
+                                               internal_memory_address_read,
                                                memory_word_read,
                                                var_instruction_to_commit,
                                                var_unit_state,
@@ -108,10 +113,10 @@ begin
                                             controller_has_written_memory,
                                             internal_committing_read_memory,
                                             internal_committing_write_memory,
-                                            memory_address_read,
-                                            memory_address_write,
+                                            internal_memory_address_read,
+                                            internal_memory_address_write,
                                             memory_word_read,
-                                            memory_word_write,
+                                            internal_memory_word_write,
                                             var_integer_to_commit,
                                             var_registers,
                                             var_unit_state,
@@ -129,6 +134,9 @@ begin
         -- Assign ports --
         committing_read_memory <= internal_committing_read_memory;
         committing_write_memory <= internal_committing_write_memory;
+        memory_address_read <= internal_memory_address_read;
+        memory_address_write <= internal_memory_address_write;
+        memory_word_write <= internal_memory_word_write;
 
         if internal_clock then
             internal_clock <= false;

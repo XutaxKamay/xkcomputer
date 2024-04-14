@@ -260,7 +260,7 @@ package CentralProcessingUnit_Package is
     procedure AskFetchInstruction
     (
         committing_read_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE
@@ -270,7 +270,7 @@ package CentralProcessingUnit_Package is
     (
         signal controller_has_read_memory: in boolean;
         committing_read_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE;
@@ -280,7 +280,7 @@ package CentralProcessingUnit_Package is
     procedure DecodeAndExecuteInstruction
     (
         committing_read_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
@@ -294,10 +294,10 @@ package CentralProcessingUnit_Package is
         signal controller_has_written_memory: in boolean;
         committing_read_memory: inout boolean;
         committing_write_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_address_write: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
-        signal memory_word_write: out WORD_TYPE;
+        memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
         var_unit_state: inout UNIT_STATE;
@@ -700,7 +700,7 @@ package body CentralProcessingUnit_Package is
     procedure AskFetchInstruction
     (
         committing_read_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE
@@ -709,7 +709,7 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit.address := registers.special.program_counter;
         instruction_to_commit.bit_index := 0;
         instruction_to_commit.bit_shift := to_integer(registers.special.program_counter mod WORD_SIZE);
-        memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift;
+        memory_address_read := instruction_to_commit.address - instruction_to_commit.bit_shift;
         committing_read_memory := true;
         var_unit_state := UNIT_STATE_COMMITING_MEMORY;
     end AskFetchInstruction;
@@ -718,7 +718,7 @@ package body CentralProcessingUnit_Package is
     (
         signal controller_has_read_memory: in boolean;
         committing_read_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         var_unit_state: inout UNIT_STATE;
@@ -738,7 +738,7 @@ package body CentralProcessingUnit_Package is
 
             -- Do we keep fetching ? --
             if instruction_to_commit.bit_index < INSTRUCTION_BIT_BUFFER'length then
-                memory_address_read <= instruction_to_commit.address 
+                memory_address_read := instruction_to_commit.address 
                     - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
                 committing_read_memory := true;
                 var_unit_state := UNIT_STATE_COMMITING_MEMORY;
@@ -758,7 +758,7 @@ package body CentralProcessingUnit_Package is
     procedure DecodeAndExecuteInstruction
     (
         committing_read_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
@@ -788,7 +788,7 @@ package body CentralProcessingUnit_Package is
             integer_to_commit.bit_index := 0;
             integer_to_commit.bit_shift := to_integer(integer_to_commit.address mod WORD_SIZE);
             integer_to_commit.write_type.is_inside_read_phase := true;
-            memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift;
+            memory_address_read := integer_to_commit.address - integer_to_commit.bit_shift;
             --------------------------------------------------
             -- Doesn't matter if it's a read or a write,
             -- we always need to read first the word anyway.
@@ -812,7 +812,7 @@ package body CentralProcessingUnit_Package is
     (
         signal controller_has_read_memory: in boolean;
         committing_read_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     ) is
@@ -830,7 +830,7 @@ package body CentralProcessingUnit_Package is
 
             -- Do we keep fetching ? --
             if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
+                memory_address_read := integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
                 committing_read_memory := true;
             else
                 -- TODO: Decrypt --
@@ -845,10 +845,10 @@ package body CentralProcessingUnit_Package is
         signal controller_has_written_memory: in boolean;
         committing_read_memory: inout boolean;
         committing_write_memory: inout boolean;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_address_write: out CPU_ADDRESS_TYPE;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
-        signal memory_word_write: out WORD_TYPE;
+        memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
         var_unit_state: inout UNIT_STATE;
@@ -902,14 +902,14 @@ package body CentralProcessingUnit_Package is
                         end loop;
 
                         integer_to_commit.bit_index := WORD_SIZE;
-                        memory_address_write <= integer_to_commit.address - integer_to_commit.bit_shift;
+                        memory_address_write := integer_to_commit.address - integer_to_commit.bit_shift;
 
                         -- TODO: Encrypt again bit_buffer here --
                         Encrypt(integer_to_commit.bit_buffer);
 
                         -- Do not add shifted bits here, since we write the full buffer --
                         for i in WORD_SIZE - 1 downto 0 loop
-                            memory_word_write(i) <= integer_to_commit.bit_buffer(i);
+                            memory_word_write(i) := integer_to_commit.bit_buffer(i);
                         end loop;
 
                         committing_write_memory := true;
@@ -922,11 +922,11 @@ package body CentralProcessingUnit_Package is
                     -- Check if we have commited memory --
                     if not committing_write_memory and not controller_has_written_memory then
                         if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                            memory_address_write <= integer_to_commit.address +
+                            memory_address_write := integer_to_commit.address +
                                 integer_to_commit.bit_index - integer_to_commit.bit_shift;
 
                             for i in WORD_SIZE - 1 downto 0 loop
-                                memory_word_write(i) <= integer_to_commit.bit_buffer(
+                                memory_word_write(i) := integer_to_commit.bit_buffer(
                                     i + integer_to_commit.bit_index
                                 );
                             end loop;
