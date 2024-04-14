@@ -32,9 +32,20 @@ begin
                          program_counter => (others => '0')));
         variable var_instruction_phase: INSTRUCTION_PHASE := INSTRUCTION_PHASE_FETCHING;
         variable var_unit_state: UNIT_STATE := UNIT_STATE_INSTRUCTION_PHASE;
-        variable var_instruction_to_commit: COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        variable var_integer_to_commit: INTEGER_TO_COMMIT_TYPE;
-        variable var_memory_mode_to_commit: MEMORY_MODE_TYPE;
+        variable var_instruction_to_commit: COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE :=
+            (address => (others => '0'),
+             bit_buffer => (others => '0'),
+             bit_index => 0,
+             bit_shift => 0);
+        variable var_integer_to_commit: INTEGER_TO_COMMIT_TYPE :=
+            (mode => MEMORY_MODE_READ,
+             address => (others => '0'),
+             read_type => (register_index => (others => '0')),
+             write_type => (integer_value => (others => '0'), is_inside_read_phase => false),
+             bit_buffer => (others => '0'),
+             bit_index => 0,
+             bit_shift => 0);
+        variable var_memory_mode_to_commit: MEMORY_MODE_TYPE := MEMORY_MODE_READ;
 
         -- Internal state --
         variable internal_committing_read_memory: boolean := false;
