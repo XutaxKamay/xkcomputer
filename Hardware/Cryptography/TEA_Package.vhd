@@ -8,6 +8,7 @@ use ieee.numeric_std.all;
 package TinyEncryptionAlgorithm_Package is
 
     subtype TEA_INTEGER_TYPE is unsigned(31 downto 0);
+    subtype TEA_BIT_VECTOR is BIT_VECTOR(63 downto 0);
     type TEA_INTEGERS_TYPE is array(0 to 1) of TEA_INTEGER_TYPE;
     type TEA_KEY_TYPE is array(0 to 3) of TEA_INTEGER_TYPE;
 
@@ -28,13 +29,13 @@ package TinyEncryptionAlgorithm_Package is
     procedure TEAEncrypt
     (
         tea_key: in TEA_KEY_TYPE; 
-        tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
+        tea_integers_bit_vec: inout TEA_BIT_VECTOR
     );
 
     procedure TEADecrypt
     (
         tea_key: in TEA_KEY_TYPE; 
-        tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
+        tea_integers_bit_vec: inout TEA_BIT_VECTOR
     );
 
 end TinyEncryptionAlgorithm_Package;
@@ -84,7 +85,7 @@ package body TinyEncryptionAlgorithm_Package is
     procedure TEAEncrypt
     (
         tea_key: in TEA_KEY_TYPE; 
-        tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
+        tea_integers_bit_vec: inout TEA_BIT_VECTOR
     ) is
         variable tea_integers: TEA_INTEGERS_TYPE := 
         (
@@ -101,7 +102,7 @@ package body TinyEncryptionAlgorithm_Package is
     procedure TEADecrypt
     (
         tea_key: in TEA_KEY_TYPE; 
-        tea_integers_bit_vec: inout BIT_VECTOR(63 downto 0)
+        tea_integers_bit_vec: inout TEA_BIT_VECTOR
     ) is
         variable tea_integers: TEA_INTEGERS_TYPE := 
         (

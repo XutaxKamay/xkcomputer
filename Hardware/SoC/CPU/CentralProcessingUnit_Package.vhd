@@ -952,9 +952,18 @@ package body CentralProcessingUnit_Package is
         bit_buffer: inout BIT_VECTOR
     ) is
         constant NUMBER_OF_ENCRYPTED_CHUNKS: integer := bit_buffer'length / ENCRYPTED_CHUNK_SIZE;
+        variable bit_buffer_integer_part: BIT_VECTOR(ENCRYPTED_CHUNK_SIZE - 1 downto 0);
     begin
         for i in 0 to NUMBER_OF_ENCRYPTED_CHUNKS - 1 loop
-            TEAEncrypt(TEA_KEY, bit_buffer(ENCRYPTED_CHUNK_SIZE * i + ENCRYPTED_CHUNK_SIZE - 1 downto ENCRYPTED_CHUNK_SIZE * i));
+            for j in ENCRYPTED_CHUNK_SIZE - 1 downto 0 loop
+                bit_buffer_integer_part(j) := bit_buffer(i * ENCRYPTED_CHUNK_SIZE + j);
+            end loop;
+
+            TEAEncrypt(TEA_KEY, bit_buffer_integer_part);
+
+            for j in ENCRYPTED_CHUNK_SIZE - 1 downto 0 loop
+                bit_buffer(i * ENCRYPTED_CHUNK_SIZE + j) := bit_buffer_integer_part(j);
+            end loop;
         end loop;
     end;
 
@@ -963,9 +972,18 @@ package body CentralProcessingUnit_Package is
         bit_buffer: inout BIT_VECTOR
     ) is
         constant NUMBER_OF_ENCRYPTED_CHUNKS: integer := bit_buffer'length / ENCRYPTED_CHUNK_SIZE;
+        variable bit_buffer_integer_part: BIT_VECTOR(ENCRYPTED_CHUNK_SIZE - 1 downto 0);
     begin
         for i in 0 to NUMBER_OF_ENCRYPTED_CHUNKS - 1 loop
-            TEADecrypt(TEA_KEY, bit_buffer(ENCRYPTED_CHUNK_SIZE * i + ENCRYPTED_CHUNK_SIZE - 1 downto ENCRYPTED_CHUNK_SIZE * i));
+            for j in ENCRYPTED_CHUNK_SIZE - 1 downto 0 loop
+                bit_buffer_integer_part(j) := bit_buffer(i * ENCRYPTED_CHUNK_SIZE + j);
+            end loop;
+
+            TEADecrypt(TEA_KEY, bit_buffer_integer_part);
+
+            for j in ENCRYPTED_CHUNK_SIZE - 1 downto 0 loop
+                bit_buffer(i * ENCRYPTED_CHUNK_SIZE + j) := bit_buffer_integer_part(j);
+            end loop;
         end loop;
     end;
 
