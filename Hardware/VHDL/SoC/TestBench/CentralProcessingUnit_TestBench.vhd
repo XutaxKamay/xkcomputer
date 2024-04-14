@@ -32,12 +32,11 @@ architecture CentralProcessingUnit_Implementation of CentralProcessingUnit_TestB
     signal memory_address_write : CPU_ADDRESS_TYPE;
     signal memory_word_read : WORD_TYPE;
     signal memory_word_write : WORD_TYPE;
-    signal self_clock : BOOLEAN;
+    signal self_clock : sTD_LOGIC;
 
 begin
-
     CentralProcessingUnit_inst : CentralProcessingUnit
-    port map(
+    port map (
         controller_has_read_memory => controller_has_read_memory,
         controller_has_written_memory => controller_has_written_memory,
         committing_read_memory => committing_read_memory,
@@ -48,29 +47,21 @@ begin
         memory_word_write => memory_word_write
     );
 
-    process (self_clock)
-        variable debug_line : line;
-        variable has_committed_read_memory : BOOLEAN := false;
-        variable has_committed_write_memory : BOOLEAN := false;
+    process (committing_read_memory)
+        variable l: line;
     begin
-        if not has_committed_read_memory then
-            if committing_read_memory then
-                write(debug_line, STRING'("Memory Controller: committing "));
-                write(debug_line, to_integer(memory_address_read));
-                writeline(output, debug_line);
-                has_committed_read_memory := true;
-                controller_has_read_memory <= true;
-            end if;
-        else
-            if not committing_read_memory then
-                has_committed_read_memory := false;
-                controller_has_read_memory <= false;
-            end if;
+        if committing_read_memory then
+            write(l, STRING'("committing_read_memory"));
+            writeline(output, l);
         end if;
-        if self_clock then
-            self_clock <= false;
-        else
-            self_clock <= true;
+    end process;
+
+    process (committing_write_memory)
+        variable l: line;
+    begin
+        if committing_write_memory then
+            write(l, STRING'("committing_write_memory"));
+            writeline(output, l);
         end if;
     end process;
 end;

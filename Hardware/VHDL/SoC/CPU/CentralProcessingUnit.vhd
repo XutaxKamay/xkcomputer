@@ -7,7 +7,6 @@ use work.CentralProcessingUnit_Package.all;
 entity CentralProcessingUnit is
     port
     (
-        enable: in std_logic;
         controller_has_read_memory: in boolean;
         controller_has_written_memory: in boolean;
         memory_word_read: in WORD_TYPE;
@@ -15,23 +14,17 @@ entity CentralProcessingUnit is
         committing_write_memory: out boolean;
         memory_address_read: out CPU_ADDRESS_TYPE;
         memory_address_write: out CPU_ADDRESS_TYPE;
-        memory_word_write: out WORD_TYPE;
-        done_job: out std_logic
+        memory_word_write: out WORD_TYPE
     );
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-    -- Internal state --
-    signal internal_committing_read_memory: boolean := false;
-    signal internal_committing_write_memory: boolean := false;
-    signal internal_memory_address_read: CPU_ADDRESS_TYPE := (others => '0');
-    signal internal_memory_address_write: CPU_ADDRESS_TYPE := (others => '0');
-    signal internal_memory_word_write: WORD_TYPE := (others => '0');
+    signal self_clock : boolean := false;
 begin
     ----------------------------------------------------------------------------
     -- Handle control unit states
     -- Feedback loop based on signal_unit_state FSM
-    process (enable)
+    process (self_clock)
         variable var_registers: REGISTERS_RECORD := 
             (general => (others => (others => '0')),
              special => (overflow_flag => false, 
@@ -52,90 +45,86 @@ begin
              bit_buffer => (others => '0'),
              bit_index => 0,
              bit_shift => 0);
-        variable var_memory_mode_to_commit: MEMORY_MODE_TYPE := MEMORY_MODE_READ;
+        -- variable var_memory_mode_to_commit: MEMORY_MODE_TYPE := MEMORY_MODE_READ;
+        -- variable debug_line: line;
     begin
-        if rising_edge(enable) then
-            done_job <= '0';
-            ------------------------------------------------------------------------
-            -- During instruction phase, there's no I/O for memory.
-            -- Instead, it will be preparing data for I/O memory.
-            -- During commiting phase, special logic will be applied for both
-            -- possible states, first for fetching the instruction,
-            -- second for the decode and execute phase.
-            -- The second phase is for commiting if an integer needs to be read
-            -- or written to a specific address.
-            case var_unit_state is
-                when UNIT_STATE_INSTRUCTION_PHASE =>
-                    case var_instruction_phase is
-                        -- Stage 1 --
-                        when INSTRUCTION_PHASE_FETCHING =>
-                            AskFetchInstruction(internal_committing_read_memory,
-                                                internal_memory_address_read,
-                                                var_registers,
-                                                var_instruction_to_commit,
-                                                var_unit_state,
-                                                var_instruction_phase);
-                                                -- write(debug_line, STRING'("UNIT_STATE_INSTRUCTION_PHASE => INSTRUCTION_PHASE_FETCHING"));
-                                                -- writeline(output, debug_line);
+        ------------------------------------------------------------------------
+        -- During instruction phase, there's no I/O for memory.
+        -- Instead, it will be preparing data for I/O memory.
+        -- During commiting phase, special logic will be applied for both
+        -- possible states, first for fetching the instruction,
+        -- second for the decode and execute phase.
+        -- The second phase is for commiting if an integer needs to be read
+        -- or written to a specific address.
+        case var_unit_state is
+            when UNIT_STATE_INSTRUCTION_PHASE =>
+                case var_instruction_phase is
+                    -- Stage 1 --
+                    when INSTRUCTION_PHASE_FETCHING =>
+                        AskFetchInstruction(committing_read_memory,
+                                            memory_address_read,
+                                            var_registers,
+                                            var_instruction_to_commit,
+                                            var_unit_state,
+                                            var_instruction_phase);
+                                            -- write(debug_line, STRING'("UNIT_STATE_INSTRUCTION_PHASE => INSTRUCTION_PHASE_FETCHING"));
+                                            -- writeline(output, debug_line);
 
-                        -- Stage 3 --
-                        when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
-                            DecodeAndExecuteInstruction(internal_committing_read_memory,
-                                                        internal_memory_address_read,
-                                                        var_instruction_to_commit,
-                                                        var_registers,
-                                                        var_integer_to_commit,
-                                                        var_unit_state,
-                                                        var_instruction_phase);
-                                                        -- write(debug_line, STRING'("UNIT_STATE_INSTRUCTION_PHASE => INSTRUCTION_PHASE_DECODE_AND_EXECUTE"));
-                                                        -- writeline(output, debug_line);
-                    end case;
+                    -- Stage 3 --
+                    when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
+                        DecodeAndExecuteInstruction(committing_read_memory,
+                                                    memory_address_read,
+                                                    var_instruction_to_commit,
+                                                    var_registers,
+                                                    var_integer_to_commit,
+                                                    var_unit_state,
+                                                    var_instruction_phase);
+                                                    -- write(debug_line, STRING'("UNIT_STATE_INSTRUCTION_PHASE => INSTRUCTION_PHASE_DECODE_AND_EXECUTE"));
+                                                    -- writeline(output, debug_line);
+                end case;
 
-                when UNIT_STATE_COMMITTING_MEMORY =>
-                    case var_instruction_phase is
-                        -- Stage 2 --
-                        when INSTRUCTION_PHASE_FETCHING =>
-                            HandleFetchInstruction(controller_has_read_memory,
-                                                internal_committing_read_memory,
-                                                internal_memory_address_read,
+            when UNIT_STATE_COMMITTING_MEMORY =>
+                case var_instruction_phase is
+                    -- Stage 2 --
+                    when INSTRUCTION_PHASE_FETCHING =>
+                        HandleFetchInstruction(controller_has_read_memory,
+                                                committing_read_memory,
+                                                memory_address_read,
                                                 memory_word_read,
                                                 var_instruction_to_commit,
                                                 var_unit_state,
                                                 var_instruction_phase);
-                                                --    write(debug_line, STRING'("UNIT_STATE_COMMITTING_MEMORY => INSTRUCTION_PHASE_FETCHING"));
-                                                --    writeline(output, debug_line);
-                        -- Stage 4 --
-                        when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
-                            HandlePostExecution(controller_has_read_memory,
-                                                controller_has_written_memory,
-                                                internal_committing_read_memory,
-                                                internal_committing_write_memory,
-                                                internal_memory_address_read,
-                                                internal_memory_address_write,
-                                                memory_word_read,
-                                                internal_memory_word_write,
-                                                var_integer_to_commit,
-                                                var_registers,
-                                                var_unit_state,
-                                                var_instruction_phase);
-                                                -- write(debug_line, STRING'("UNIT_STATE_COMMITTING_MEMORY => INSTRUCTION_PHASE_DECODE_AND_EXECUTE => "));
-                                                -- if var_memory_mode_to_commit = MEMORY_MODE_READ then
-                                                --     write(debug_line, STRING'("MEMORY_MODE_READ"));
-                                                -- else
-                                                --     write(debug_line, STRING'("MEMORY_MODE_WRITE"));
-                                                -- end if;
-                                                -- writeline(output, debug_line);
-                    end case;
-            end case;
-            done_job <= '1';
+                                            --    write(debug_line, STRING'("UNIT_STATE_COMMITTING_MEMORY => INSTRUCTION_PHASE_FETCHING"));
+                                            --    writeline(output, debug_line);
+                    -- Stage 4 --
+                    when INSTRUCTION_PHASE_DECODE_AND_EXECUTE =>
+                        HandlePostExecution(controller_has_read_memory,
+                                            controller_has_written_memory,
+                                            committing_read_memory,
+                                            committing_write_memory,
+                                            memory_address_read,
+                                            memory_address_write,
+                                            memory_word_read,
+                                            memory_word_write,
+                                            var_integer_to_commit,
+                                            var_registers,
+                                            var_unit_state,
+                                            var_instruction_phase);
+                                            -- write(debug_line, STRING'("UNIT_STATE_COMMITTING_MEMORY => INSTRUCTION_PHASE_DECODE_AND_EXECUTE => "));
+                                            -- if var_memory_mode_to_commit = MEMORY_MODE_READ then
+                                            --     write(debug_line, STRING'("MEMORY_MODE_READ"));
+                                            -- else
+                                            --     write(debug_line, STRING'("MEMORY_MODE_WRITE"));
+                                            -- end if;
+                                            -- writeline(output, debug_line);
+                end case;
+        end case;
+
+        if self_clock then
+            self_clock <= false;
+        else
+            self_clock <= true;
         end if;
     end process;
-
-    -- Assign ports --
-    committing_read_memory <= internal_committing_read_memory;
-    committing_write_memory <= internal_committing_write_memory;
-    memory_address_read <= internal_memory_address_read;
-    memory_address_write <= internal_memory_address_write;
-    memory_word_write <= internal_memory_word_write;
 
 end CentralProcessingUnit_Implementation;
