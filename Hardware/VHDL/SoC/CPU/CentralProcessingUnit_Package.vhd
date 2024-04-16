@@ -6,24 +6,22 @@ use work.Maths_Package.all;
 
 package CentralProcessingUnit_Package is
 
-    -----------------------------------------------------------------------------------
-    -- ° Stage 1: UNIT_STATE_INSTRUCTION_PHASE & INSTRUCTION_PHASE_FETCHING
-    -- ° Stage 2: UNIT_STATE_COMMITTING_MEMORY & INSTRUCTION_PHASE_FETCHING
-    -- ° Stage 3: UNIT_STATE_INSTRUCTION_PHASE & INSTRUCTION_PHASE_DECODE_AND_EXECUTE
-    -- ° Stage 4: UNIT_STATE_COMMITTING_MEMORY & INSTRUCTION_PHASE_DECODE_AND_EXECUTE
-    -- Step 4 isn't always needed, sometimes we operate directly on registers.
-    -- ° Repeat stage 1.
+    ------------------------------------------------------------------------------------------
+    -- ° Stage 1: Just ask the instruction, this is just the initial step to ask
+    --            the next instruction.
+    -- ° Stage 2: Accumulate the bits into a buffer,
+    --            decode the buffer into an instruction and execute it.
+    -- ° Stage 3: Sometimes, we need to either read a word and put it into a register,
+    --            or write a word from a register / by copying an integer.
+    --
+    -- Stage 3 isn't always needed, sometimes we operate directly on registers.
+    -- Once all stages are complete, repeat stage 1.
 
-    type UNIT_STATE is
+    type UNIT_STATE_TYPE is
     (
-        UNIT_STATE_INSTRUCTION_PHASE,
+        UNIT_STATE_INITIAL,
+        UNIT_STATE_FETCH_AND_EXECUTE_INSTRUCTION,
         UNIT_STATE_COMMITTING_MEMORY
-    );
-
-    type INSTRUCTION_PHASE is
-    (
-        INSTRUCTION_PHASE_FETCHING,
-        INSTRUCTION_PHASE_DECODE_AND_EXECUTE
     );
 
     type MEMORY_MODE_TYPE is
@@ -51,8 +49,8 @@ package CentralProcessingUnit_Package is
         -- Resulting integer --
         value: ALU_INTEGER_IN_TYPE;
         -- Overflow flag --
-        overflow: boolean;
-        condition: boolean;
+        overflow: BOOLEAN;
+        condition: BOOLEAN;
     end record;
 
     type ALU_OPERATION_TYPE is
@@ -127,8 +125,8 @@ package CentralProcessingUnit_Package is
     subtype REGISTER_INTEGER_TYPE is integer range REGISTER_INDEX_TYPE'high - 1 downto 0;
 
     type SPECIAL_REGISTERS is record
-        overflow_flag: boolean;
-        condition_flag: boolean;
+        overflow_flag: BOOLEAN;
+        condition_flag: BOOLEAN;
         program_counter: CPU_ADDRESS_TYPE;
     end record;
 
@@ -208,7 +206,7 @@ package CentralProcessingUnit_Package is
 
     type COMMIT_WRITE_WORD_TYPE is record
         integer_value: CPU_INTEGER_TYPE;
-        is_inside_read_phase: boolean;
+        is_inside_read_phase: BOOLEAN;
     end record;
 
     type INTEGER_TO_COMMIT_TYPE is record
@@ -240,39 +238,30 @@ package CentralProcessingUnit_Package is
     -- Checks memory commits from memory controller --
     function IsReadyToCommitMemory
     (
-        signal controller_has_memory: boolean;
-        signal committing_memory: boolean
-    ) return boolean;
+        signal controller_has_memory: in BOOLEAN;
+        signal committing_memory: in BOOLEAN
+    ) return BOOLEAN;
 
     procedure CheckMemoryCommit
     (
-        signal controller_has_memory: in boolean;
-        signal committing_memory: inout boolean
+        signal controller_has_memory: in BOOLEAN;
+        signal committing_memory: inout BOOLEAN
     );
 
     -- Switch to different stages --
     procedure Stage1
     (
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     );
 
     procedure Stage2
     (
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     );
 
     procedure Stage3
     (
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
-    );
-
-    procedure Stage4
-    (
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     );
 
     function HandleALUOperations
@@ -287,7 +276,7 @@ package CentralProcessingUnit_Package is
         mode: in MEMORY_MODE_TYPE;
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
-        should_commit_memory: inout boolean;
+        should_commit_memory: inout BOOLEAN;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     );
 
@@ -300,83 +289,83 @@ package CentralProcessingUnit_Package is
     (
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
-        should_commit_memory: inout boolean;
+        should_commit_memory: inout BOOLEAN;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     );
 
     procedure AskFetchInstruction
     (
-        signal committing_read_memory: inout boolean;
+        signal committing_read_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     );
 
     procedure DecodeAndExecuteInstruction
     (
-        signal committing_read_memory: inout boolean;
+        signal committing_read_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     );
 
-    procedure HandleFetchInstruction
+    procedure HandleInstruction
     (
-        signal controller_has_read_memory: in boolean;
-        signal committing_read_memory: inout boolean;
+        signal controller_has_read_memory: in BOOLEAN;
+        signal committing_read_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
+        registers: inout REGISTERS_RECORD;
+        unit_state: inout UNIT_STATE_TYPE
     );
 
     procedure HandleMemoryRead
     (
-        signal controller_has_read_memory: in boolean;
-        signal committing_read_memory: inout boolean;
+        signal controller_has_read_memory: in BOOLEAN;
+        signal committing_read_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     );
 
     procedure HandleMemoryWrite
     (
-        signal controller_has_read_memory: in boolean;
-        signal controller_has_written_memory: in boolean;
-        signal committing_read_memory: inout boolean;
-        signal committing_write_memory: inout boolean;
+        signal controller_has_read_memory: in BOOLEAN;
+        signal controller_has_written_memory: in BOOLEAN;
+        signal committing_read_memory: inout BOOLEAN;
+        signal committing_write_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         signal memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
+        registers: inout REGISTERS_RECORD;
+        unit_state: inout UNIT_STATE_TYPE
     );
 
     procedure HandlePostExecution
     (
-        signal controller_has_read_memory: in boolean;
-        signal controller_has_written_memory: in boolean;
-        signal committing_read_memory: inout boolean;
-        signal committing_write_memory: inout boolean;
+        signal controller_has_read_memory: in BOOLEAN;
+        signal controller_has_written_memory: in BOOLEAN;
+        signal committing_read_memory: inout BOOLEAN;
+        signal committing_write_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         signal memory_word_write: out WORD_TYPE;
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     );
 
 end CentralProcessingUnit_Package;
@@ -385,17 +374,17 @@ package body CentralProcessingUnit_Package is
 
     function IsReadyToCommitMemory
     (
-        signal controller_has_memory: boolean;
-        signal committing_memory: boolean
-    ) return boolean is
+        signal controller_has_memory: in BOOLEAN;
+        signal committing_memory: in BOOLEAN
+    ) return BOOLEAN is
     begin
         return not controller_has_memory and not committing_memory;
     end IsReadyToCommitMemory;
 
     procedure CheckMemoryCommit
     (
-        signal controller_has_memory: in boolean;
-        signal committing_memory: inout boolean
+        signal controller_has_memory: in BOOLEAN;
+        signal committing_memory: inout BOOLEAN
     ) is
     begin
         -----------------------------------------------------------------------
@@ -409,43 +398,27 @@ package body CentralProcessingUnit_Package is
 
     procedure Stage1
     (
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     ) is
     begin
-        var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
-        var_unit_state := UNIT_STATE_INSTRUCTION_PHASE;
+        unit_state := UNIT_STATE_INITIAL;
     end Stage1;
 
     procedure Stage2
     (
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     ) is
     begin
-        var_instruction_phase := INSTRUCTION_PHASE_FETCHING;
-        var_unit_state := UNIT_STATE_COMMITTING_MEMORY;
+        unit_state := UNIT_STATE_FETCH_AND_EXECUTE_INSTRUCTION;
     end Stage2;
 
     procedure Stage3
     (
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     ) is
     begin
-        var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
-        var_unit_state := UNIT_STATE_INSTRUCTION_PHASE;
+        unit_state := UNIT_STATE_COMMITTING_MEMORY;
     end Stage3;
-
-    procedure Stage4
-    (
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
-    ) is
-    begin
-        var_instruction_phase := INSTRUCTION_PHASE_DECODE_AND_EXECUTE;
-        var_unit_state := UNIT_STATE_COMMITTING_MEMORY;
-    end Stage4;
 
     function HandleALUOperations
     (
@@ -459,8 +432,8 @@ package body CentralProcessingUnit_Package is
     variable temporary_add_resulting_integer: MAX_ADD_ALU_INTEGER_IN_TYPE;
     variable temporary_resulting_integer: ALU_INTEGER_IN_TYPE;
     variable temporary_resulting_integer_type: ALU_OPERATION_INTEGER_TYPE := ALU_OPERATION_INTEGER_DEFAULT;
-    variable division_by_zero: boolean := false;
-    variable condition: boolean := false;
+    variable division_by_zero: BOOLEAN := false;
+    variable condition: BOOLEAN := false;
     variable integer_out: ALU_INTEGER_OUT_TYPE;
 
     begin
@@ -570,7 +543,7 @@ package body CentralProcessingUnit_Package is
         mode: in MEMORY_MODE_TYPE;
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
-        should_commit_memory: inout boolean;
+        should_commit_memory: inout BOOLEAN;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     ) is
         variable register_left_index: REGISTER_INTEGER_TYPE;
@@ -671,15 +644,15 @@ package body CentralProcessingUnit_Package is
     (
         decoded_instruction: in INSTRUCTION;
         registers: inout REGISTERS_RECORD;
-        should_commit_memory: inout boolean;
+        should_commit_memory: inout BOOLEAN;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE
     ) is
 
         variable alu_integer_out: ALU_INTEGER_OUT_TYPE;
         variable operation_type: ALU_OPERATION_TYPE;
-        variable is_alu_operation_type: boolean := false;
-        variable is_alu_operation_condition_flag_type: boolean := false;
-        variable is_jumping: boolean := false;
+        variable is_alu_operation_type: BOOLEAN := false;
+        variable is_alu_operation_condition_flag_type: BOOLEAN := false;
+        variable is_jumping: BOOLEAN := false;
         variable register_left_index: REGISTER_INTEGER_TYPE;
         variable register_right_index: REGISTER_INTEGER_TYPE;
 
@@ -838,12 +811,11 @@ package body CentralProcessingUnit_Package is
 
     procedure AskFetchInstruction
     (
-        signal committing_read_memory: inout boolean;
+        signal committing_read_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: inout INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     ) is
     begin
         instruction_to_commit.address := registers.special.program_counter;
@@ -851,18 +823,19 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit.bit_shift := to_integer(registers.special.program_counter mod WORD_SIZE);
         memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift;
         committing_read_memory <= true;
-        Stage2(var_unit_state, var_instruction_phase);
+        Stage2(unit_state);
     end AskFetchInstruction;
 
-    procedure HandleFetchInstruction
+    procedure HandleInstruction
     (
-        signal controller_has_read_memory: in boolean;
-        signal committing_read_memory: inout boolean;
+        signal controller_has_read_memory: in BOOLEAN;
+        signal committing_read_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
+        registers: inout REGISTERS_RECORD;
+        unit_state: inout UNIT_STATE_TYPE
     ) is
     begin
         -- Wait for memory commit --
@@ -881,31 +854,35 @@ package body CentralProcessingUnit_Package is
                 memory_address_read <= instruction_to_commit.address 
                     - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
                 committing_read_memory <= true;
-                Stage2(var_unit_state, var_instruction_phase);
+                Stage2(unit_state);
             else
-                -- We fetched the whole instruction, get on instruction phase --
-                Stage3(var_unit_state, var_instruction_phase);
+                -- We fetched the whole instruction, decode the instruction and execute it --
+                DecodeAndExecuteInstruction(committing_read_memory,
+                                            memory_address_read,
+                                            instruction_to_commit,
+                                            registers,
+                                            integer_to_commit,
+                                            unit_state);
             end if;
         else
             -- Keep fetching instruction --
             CheckMemoryCommit(controller_has_read_memory, committing_read_memory);
-            Stage2(var_unit_state, var_instruction_phase);
+            Stage2(unit_state);
         end if;
-    end HandleFetchInstruction;
+    end HandleInstruction;
 
     procedure DecodeAndExecuteInstruction
     (
-        signal committing_read_memory: inout boolean;
+        signal committing_read_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     ) is
         variable encoded_instruction: INSTRUCTION_BIT_VECTOR;
         variable decoded_instruction: INSTRUCTION;
-        variable should_commit_memory: boolean := false;
+        variable should_commit_memory: BOOLEAN := false;
     begin
         -- TODO: Decrypt memory here --
         Decrypt(instruction_to_commit.bit_buffer);
@@ -940,23 +917,27 @@ package body CentralProcessingUnit_Package is
             -- of encryption/decryption, it is.
             -- So it starts with reading memory anyway.
             committing_read_memory <= true;
-            Stage4(var_unit_state, var_instruction_phase);
+            Stage3(unit_state);
         -- Otherwise fetch again another instruction --
         else
-            Stage1(var_unit_state, var_instruction_phase);
+            AskFetchInstruction(committing_read_memory,
+                                memory_address_read,
+                                registers,
+                                instruction_to_commit,
+                                unit_state);
         end if;
     end DecodeAndExecuteInstruction;
 
     procedure HandleMemoryRead
     (
-        signal controller_has_read_memory: in boolean;
-        signal committing_read_memory: inout boolean;
+        signal controller_has_read_memory: in BOOLEAN;
+        signal committing_read_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     ) is
     begin
         -- Has something been fetch yet ? --
@@ -974,7 +955,7 @@ package body CentralProcessingUnit_Package is
             if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
                 memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
                 committing_read_memory <= true;
-                Stage4(var_unit_state, var_instruction_phase);
+                Stage3(unit_state);
             else
                 -- TODO: Decrypt --
                 Decrypt(integer_to_commit.bit_buffer);
@@ -991,28 +972,35 @@ package body CentralProcessingUnit_Package is
 
                 -- TODO: Do not leak information for encrypted memory --
                 Encrypt(integer_to_commit.bit_buffer);
-                Stage1(var_unit_state, var_instruction_phase);
+
+                -- Ask another instruction and switch to stage 2 directly --
+                AskFetchInstruction(committing_read_memory,
+                                    memory_address_read,
+                                    registers,
+                                    instruction_to_commit,
+                                    unit_state);
             end if;
         else
             -- Keep reading memory --
             CheckMemoryCommit(controller_has_read_memory, committing_read_memory);
-            Stage4(var_unit_state, var_instruction_phase);
+            Stage3(unit_state);
         end if;
     end HandleMemoryRead;
 
     procedure HandleMemoryWrite
     (
-        signal controller_has_read_memory: in boolean;
-        signal controller_has_written_memory: in boolean;
-        signal committing_read_memory: inout boolean;
-        signal committing_write_memory: inout boolean;
+        signal controller_has_read_memory: in BOOLEAN;
+        signal controller_has_written_memory: in BOOLEAN;
+        signal committing_read_memory: inout BOOLEAN;
+        signal committing_write_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         signal memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
+        registers: inout REGISTERS_RECORD;
+        unit_state: inout UNIT_STATE_TYPE
     ) is
     begin
         -- Always read phase first, we need to retrieve the old words before writting a new integer into it --
@@ -1064,7 +1052,7 @@ package body CentralProcessingUnit_Package is
             end if;
 
             -- We stay on stage 4 no matter what anyway --
-            Stage4(var_unit_state, var_instruction_phase);
+            Stage3(unit_state);
         else
             -- Check if we have commited memory --
             if IsReadyToCommitMemory(controller_has_written_memory, committing_write_memory) then
@@ -1079,34 +1067,38 @@ package body CentralProcessingUnit_Package is
                     end loop;
 
                     integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
-                    Stage4(var_unit_state, var_instruction_phase);
+                    Stage3(unit_state);
                     committing_write_memory <= true;
                 else
-                    -- Loop again through stage 1 and ask another instruction --
-                    Stage1(var_unit_state, var_instruction_phase);
+                    -- Ask another instruction and switch to stage 2 directly --
+                    AskFetchInstruction(committing_read_memory,
+                                        memory_address_read,
+                                        registers,
+                                        instruction_to_commit,
+                                        unit_state);
                 end if;
             else
                 -- Keep commiting --
                 CheckMemoryCommit(controller_has_written_memory, committing_write_memory);
-                Stage4(var_unit_state, var_instruction_phase);
+                Stage3(unit_state);
             end if;
     end if;
     end HandleMemoryWrite;
 
     procedure HandlePostExecution
     (
-        signal controller_has_read_memory: in boolean;
-        signal controller_has_written_memory: in boolean;
-        signal committing_read_memory: inout boolean;
-        signal committing_write_memory: inout boolean;
+        signal controller_has_read_memory: in BOOLEAN;
+        signal controller_has_written_memory: in BOOLEAN;
+        signal committing_read_memory: inout BOOLEAN;
+        signal committing_write_memory: inout BOOLEAN;
         signal memory_address_read: out CPU_ADDRESS_TYPE;
         signal memory_address_write: out CPU_ADDRESS_TYPE;
         signal memory_word_read: in WORD_TYPE;
         signal memory_word_write: out WORD_TYPE;
+        instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
-        var_unit_state: inout UNIT_STATE;
-        var_instruction_phase: out INSTRUCTION_PHASE
+        unit_state: inout UNIT_STATE_TYPE
     ) is
     begin
         case integer_to_commit.mode is
@@ -1116,9 +1108,9 @@ package body CentralProcessingUnit_Package is
                                  memory_address_read,
                                  memory_word_read,
                                  integer_to_commit,
+                                 instruction_to_commit,
                                  registers,
-                                 var_unit_state,
-                                 var_instruction_phase);
+                                 unit_state);
             when MEMORY_MODE_WRITE =>
                 HandleMemoryWrite(controller_has_read_memory,
                                   controller_has_written_memory,
@@ -1129,8 +1121,9 @@ package body CentralProcessingUnit_Package is
                                   memory_word_read,
                                   memory_word_write,
                                   integer_to_commit,
-                                  var_unit_state,
-                                  var_instruction_phase);
+                                  instruction_to_commit,
+                                  registers,
+                                  unit_state);
         end case;
     end HandlePostExecution;
 

@@ -3,5 +3,4 @@ ghdl -a -fsynopsys --workdir=work/ghdl --std=08 \
 	./Hardware/VHDL/Maths/Maths_Package.vhd \
 	./Hardware/VHDL/SoC/CPU/CentralProcessingUnit_Package.vhd \
 	./Hardware/VHDL/SoC/CPU/CentralProcessingUnit.vhd \
-	./Hardware/VHDL/SoC/TestBench/CentralProcessingUnit_TestBench.vhd \
-	./Hardware/VHDL/SoC/Memory/Memory.vhd
+	./Hardware/VHDL/SoC/TestBench/CentralProcessingUnit_TestBench.vhd 

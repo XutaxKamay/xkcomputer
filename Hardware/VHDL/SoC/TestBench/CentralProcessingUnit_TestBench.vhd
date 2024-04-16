@@ -32,7 +32,6 @@ architecture CentralProcessingUnit_Implementation of CentralProcessingUnit_TestB
     signal memory_address_write : CPU_ADDRESS_TYPE;
     signal memory_word_read : WORD_TYPE;
     signal memory_word_write : WORD_TYPE;
-    signal self_clock : sTD_LOGIC;
 
 begin
     CentralProcessingUnit_inst : CentralProcessingUnit
@@ -50,18 +49,26 @@ begin
     process (committing_read_memory)
         variable l: line;
     begin
+        write(l, STRING'("committing_read_memory: "));
+        write(l, committing_read_memory);
+        writeline(output, l);
         if committing_read_memory then
-            write(l, STRING'("committing_read_memory"));
-            writeline(output, l);
+            controller_has_read_memory <= true;
+        else
+            controller_has_read_memory <= false;
         end if;
     end process;
 
     process (committing_write_memory)
         variable l: line;
     begin
+        write(l, STRING'("committing_write_memory: "));
+        write(l, committing_write_memory);
+        writeline(output, l);
         if committing_write_memory then
-            write(l, STRING'("committing_write_memory"));
-            writeline(output, l);
+            controller_has_written_memory <= true;
+        else
+            controller_has_written_memory <= false;
         end if;
     end process;
 end;
