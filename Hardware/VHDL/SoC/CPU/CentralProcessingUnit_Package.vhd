@@ -238,14 +238,14 @@ package CentralProcessingUnit_Package is
     -- Checks memory commits from memory controller --
     function IsReadyToCommitMemory
     (
-        signal controller_has_memory: in BOOLEAN;
-        signal committing_memory: in BOOLEAN
+        controller_has_memory: in BOOLEAN;
+        committing_memory: in BOOLEAN
     ) return BOOLEAN;
 
     procedure CheckMemoryCommit
     (
-        signal controller_has_memory: in BOOLEAN;
-        signal committing_memory: inout BOOLEAN
+        controller_has_memory: in BOOLEAN;
+        committing_memory: inout BOOLEAN
     );
 
     -- Switch to different stages --
@@ -295,8 +295,8 @@ package CentralProcessingUnit_Package is
 
     procedure AskFetchInstruction
     (
-        signal committing_read_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        committing_read_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         unit_state: inout UNIT_STATE_TYPE
@@ -304,8 +304,8 @@ package CentralProcessingUnit_Package is
 
     procedure DecodeAndExecuteInstruction
     (
-        signal committing_read_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        committing_read_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
@@ -314,10 +314,10 @@ package CentralProcessingUnit_Package is
 
     procedure HandleInstruction
     (
-        signal controller_has_read_memory: in BOOLEAN;
-        signal committing_read_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in WORD_TYPE;
+        controller_has_read_memory: in BOOLEAN;
+        committing_read_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -326,10 +326,10 @@ package CentralProcessingUnit_Package is
 
     procedure HandleMemoryRead
     (
-        signal controller_has_read_memory: in BOOLEAN;
-        signal committing_read_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in WORD_TYPE;
+        controller_has_read_memory: in BOOLEAN;
+        committing_read_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_word_read: in WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -338,14 +338,14 @@ package CentralProcessingUnit_Package is
 
     procedure HandleMemoryWrite
     (
-        signal controller_has_read_memory: in BOOLEAN;
-        signal controller_has_written_memory: in BOOLEAN;
-        signal committing_read_memory: inout BOOLEAN;
-        signal committing_write_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_address_write: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in WORD_TYPE;
-        signal memory_word_write: out WORD_TYPE;
+        controller_has_read_memory: in BOOLEAN;
+        controller_has_written_memory: in BOOLEAN;
+        committing_read_memory: inout BOOLEAN;
+        committing_write_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_write: out CPU_ADDRESS_TYPE;
+        memory_word_read: in WORD_TYPE;
+        memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -354,14 +354,14 @@ package CentralProcessingUnit_Package is
 
     procedure HandlePostExecution
     (
-        signal controller_has_read_memory: in BOOLEAN;
-        signal controller_has_written_memory: in BOOLEAN;
-        signal committing_read_memory: inout BOOLEAN;
-        signal committing_write_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_address_write: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in WORD_TYPE;
-        signal memory_word_write: out WORD_TYPE;
+        controller_has_read_memory: in BOOLEAN;
+        controller_has_written_memory: in BOOLEAN;
+        committing_read_memory: inout BOOLEAN;
+        committing_write_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_write: out CPU_ADDRESS_TYPE;
+        memory_word_read: in WORD_TYPE;
+        memory_word_write: out WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -374,8 +374,8 @@ package body CentralProcessingUnit_Package is
 
     function IsReadyToCommitMemory
     (
-        signal controller_has_memory: in BOOLEAN;
-        signal committing_memory: in BOOLEAN
+        controller_has_memory: in BOOLEAN;
+        committing_memory: in BOOLEAN
     ) return BOOLEAN is
     begin
         return not controller_has_memory and not committing_memory;
@@ -383,8 +383,8 @@ package body CentralProcessingUnit_Package is
 
     procedure CheckMemoryCommit
     (
-        signal controller_has_memory: in BOOLEAN;
-        signal committing_memory: inout BOOLEAN
+        controller_has_memory: in BOOLEAN;
+        committing_memory: inout BOOLEAN
     ) is
     begin
         -----------------------------------------------------------------------
@@ -392,7 +392,7 @@ package body CentralProcessingUnit_Package is
         -- We need to wait for the controller for us to false
         -- controller_has_memory
         if controller_has_memory and committing_memory then
-            committing_memory <= false;
+            committing_memory := false;
         end if;
     end CheckMemoryCommit;
 
@@ -811,8 +811,8 @@ package body CentralProcessingUnit_Package is
 
     procedure AskFetchInstruction
     (
-        signal committing_read_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        committing_read_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         registers: in REGISTERS_RECORD;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         unit_state: inout UNIT_STATE_TYPE
@@ -821,17 +821,17 @@ package body CentralProcessingUnit_Package is
         instruction_to_commit.address := registers.special.program_counter;
         instruction_to_commit.bit_index := 0;
         instruction_to_commit.bit_shift := to_integer(registers.special.program_counter mod WORD_SIZE);
-        memory_address_read <= instruction_to_commit.address - instruction_to_commit.bit_shift;
-        committing_read_memory <= true;
+        memory_address_read := instruction_to_commit.address - instruction_to_commit.bit_shift;
+        committing_read_memory := true;
         Stage2(unit_state);
     end AskFetchInstruction;
 
     procedure HandleInstruction
     (
-        signal controller_has_read_memory: in BOOLEAN;
-        signal committing_read_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in WORD_TYPE;
+        controller_has_read_memory: in BOOLEAN;
+        committing_read_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_word_read: in WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -851,9 +851,9 @@ package body CentralProcessingUnit_Package is
 
             -- Do we keep fetching ? --
             if instruction_to_commit.bit_index < INSTRUCTION_BIT_BUFFER'length then
-                memory_address_read <= instruction_to_commit.address 
+                memory_address_read := instruction_to_commit.address 
                     - instruction_to_commit.bit_shift + instruction_to_commit.bit_index;
-                committing_read_memory <= true;
+                committing_read_memory := true;
                 Stage2(unit_state);
             else
                 -- We fetched the whole instruction, decode the instruction and execute it --
@@ -873,8 +873,8 @@ package body CentralProcessingUnit_Package is
 
     procedure DecodeAndExecuteInstruction
     (
-        signal committing_read_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
+        committing_read_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
@@ -906,7 +906,7 @@ package body CentralProcessingUnit_Package is
             integer_to_commit.bit_index := 0;
             integer_to_commit.bit_shift := to_integer(integer_to_commit.address mod WORD_SIZE);
             integer_to_commit.write_type.is_inside_read_phase := true;
-            memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift;
+            memory_address_read := integer_to_commit.address - integer_to_commit.bit_shift;
             --------------------------------------------------
             -- Doesn't matter if it's a read or a write,
             -- we always need to read first the word anyway.
@@ -916,7 +916,7 @@ package body CentralProcessingUnit_Package is
             -- Normally, this isn't needed, but in case
             -- of encryption/decryption, it is.
             -- So it starts with reading memory anyway.
-            committing_read_memory <= true;
+            committing_read_memory := true;
             Stage3(unit_state);
         -- Otherwise fetch again another instruction --
         else
@@ -930,10 +930,10 @@ package body CentralProcessingUnit_Package is
 
     procedure HandleMemoryRead
     (
-        signal controller_has_read_memory: in BOOLEAN;
-        signal committing_read_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in WORD_TYPE;
+        controller_has_read_memory: in BOOLEAN;
+        committing_read_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_word_read: in WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -953,8 +953,8 @@ package body CentralProcessingUnit_Package is
 
             -- Do we keep fetching ? --
             if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
-                committing_read_memory <= true;
+                memory_address_read := integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
+                committing_read_memory := true;
                 Stage3(unit_state);
             else
                 -- TODO: Decrypt --
@@ -989,14 +989,14 @@ package body CentralProcessingUnit_Package is
 
     procedure HandleMemoryWrite
     (
-        signal controller_has_read_memory: in BOOLEAN;
-        signal controller_has_written_memory: in BOOLEAN;
-        signal committing_read_memory: inout BOOLEAN;
-        signal committing_write_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_address_write: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in WORD_TYPE;
-        signal memory_word_write: out WORD_TYPE;
+        controller_has_read_memory: in BOOLEAN;
+        controller_has_written_memory: in BOOLEAN;
+        committing_read_memory: inout BOOLEAN;
+        committing_write_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_write: out CPU_ADDRESS_TYPE;
+        memory_word_read: in WORD_TYPE;
+        memory_word_write: out WORD_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         registers: inout REGISTERS_RECORD;
@@ -1018,8 +1018,8 @@ package body CentralProcessingUnit_Package is
 
                 -- Do we keep fetching the old integer ? --
                 if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                    memory_address_read <= integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
-                    committing_read_memory <= true;
+                    memory_address_read := integer_to_commit.address - integer_to_commit.bit_shift + integer_to_commit.bit_index;
+                    committing_read_memory := true;
                 -- Once we have read the old integer, start to write the new one and commit --
                 else
                     -- TODO: Decrypt --
@@ -1036,15 +1036,15 @@ package body CentralProcessingUnit_Package is
                     Encrypt(integer_to_commit.bit_buffer);
 
                     integer_to_commit.bit_index := WORD_SIZE;
-                    memory_address_write <= integer_to_commit.address - integer_to_commit.bit_shift;
+                    memory_address_write := integer_to_commit.address - integer_to_commit.bit_shift;
 
                     -- Do not add shifted bits here, since we write the full buffer --
                     for i in WORD_SIZE - 1 downto 0 loop
-                        memory_word_write(i) <= integer_to_commit.bit_buffer(i);
+                        memory_word_write(i) := integer_to_commit.bit_buffer(i);
                     end loop;
 
                     integer_to_commit.write_type.is_inside_read_phase := false;
-                    committing_write_memory <= true;
+                    committing_write_memory := true;
                 end if;
             else
                 -- Keep commiting --
@@ -1057,18 +1057,18 @@ package body CentralProcessingUnit_Package is
             -- Check if we have commited memory --
             if IsReadyToCommitMemory(controller_has_written_memory, committing_write_memory) then
                 if integer_to_commit.bit_index < INTEGER_BIT_BUFFER'length then
-                    memory_address_write <= integer_to_commit.address +
+                    memory_address_write := integer_to_commit.address +
                         integer_to_commit.bit_index - integer_to_commit.bit_shift;
 
                     for i in WORD_SIZE - 1 downto 0 loop
-                        memory_word_write(i) <= integer_to_commit.bit_buffer(
+                        memory_word_write(i) := integer_to_commit.bit_buffer(
                             i + integer_to_commit.bit_index
                         );
                     end loop;
 
                     integer_to_commit.bit_index := integer_to_commit.bit_index + WORD_SIZE;
                     Stage3(unit_state);
-                    committing_write_memory <= true;
+                    committing_write_memory := true;
                 else
                     -- Ask another instruction and switch to stage 2 directly --
                     AskFetchInstruction(committing_read_memory,
@@ -1087,14 +1087,14 @@ package body CentralProcessingUnit_Package is
 
     procedure HandlePostExecution
     (
-        signal controller_has_read_memory: in BOOLEAN;
-        signal controller_has_written_memory: in BOOLEAN;
-        signal committing_read_memory: inout BOOLEAN;
-        signal committing_write_memory: inout BOOLEAN;
-        signal memory_address_read: out CPU_ADDRESS_TYPE;
-        signal memory_address_write: out CPU_ADDRESS_TYPE;
-        signal memory_word_read: in WORD_TYPE;
-        signal memory_word_write: out WORD_TYPE;
+        controller_has_read_memory: in BOOLEAN;
+        controller_has_written_memory: in BOOLEAN;
+        committing_read_memory: inout BOOLEAN;
+        committing_write_memory: inout BOOLEAN;
+        memory_address_read: out CPU_ADDRESS_TYPE;
+        memory_address_write: out CPU_ADDRESS_TYPE;
+        memory_word_read: in WORD_TYPE;
+        memory_word_write: out WORD_TYPE;
         instruction_to_commit: inout COMMIT_MEMORY_FETCH_INSTRUCTION_TYPE;
         integer_to_commit: inout INTEGER_TO_COMMIT_TYPE;
         registers: inout REGISTERS_RECORD;

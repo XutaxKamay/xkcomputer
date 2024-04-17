@@ -19,16 +19,18 @@ entity CentralProcessingUnit is
 end CentralProcessingUnit;
 
 architecture CentralProcessingUnit_Implementation of CentralProcessingUnit is
-    signal internal_committing_read_memory: BOOLEAN := false;
-    signal internal_committing_write_memory: BOOLEAN := false;
-    signal internal_memory_address_read: CPU_ADDRESS_TYPE := (others => '0');
-    signal internal_memory_address_write: CPU_ADDRESS_TYPE := (others => '0');
-    signal internal_memory_word_write: WORD_TYPE := (others => '0');
 begin
     ----------------------------------------------------------------------------
     -- Handle control unit states
-    -- Feedback loop based on signal_unit_state FSM
     process (controller_has_read_memory, controller_has_written_memory)
+        variable internal_controller_has_read_memory: BOOLEAN := false;
+        variable internal_controller_has_written_memory: BOOLEAN := false;
+        variable internal_committing_read_memory: BOOLEAN := false;
+        variable internal_committing_write_memory: BOOLEAN := false;
+        variable internal_memory_address_read: CPU_ADDRESS_TYPE := (others => '0');
+        variable internal_memory_address_write: CPU_ADDRESS_TYPE := (others => '0');
+        variable internal_memory_word_write: WORD_TYPE := (others => '0');
+        variable internal_memory_word_read: WORD_TYPE;
         variable internal_registers: REGISTERS_RECORD := 
             (general => (others => (others => '0')),
              special => (overflow_flag => false, 
@@ -51,6 +53,11 @@ begin
         -- variable internal_memory_mode_to_commit: MEMORY_MODE_TYPE := MEMORY_MODE_READ;
         -- variable debug_line: line;
     begin
+        -- Assign input ports --
+        internal_controller_has_read_memory := controller_has_read_memory;
+        internal_controller_has_written_memory := controller_has_written_memory;
+        internal_memory_word_read := memory_word_read;
+
         ------------------------------------------------------------------------
         -- During instruction phase, there's no I/O for memory.
         -- Instead, it will be preparing data for I/O memory.
@@ -69,10 +76,10 @@ begin
                                     -- write(debug_line, STRING'("UNIT_STATE_INITIAL"));
                                     -- writeline(output, debug_line);
             when UNIT_STATE_FETCH_AND_EXECUTE_INSTRUCTION =>
-                HandleInstruction(controller_has_read_memory,
+                HandleInstruction(internal_controller_has_read_memory,
                                   internal_committing_read_memory,
                                   internal_memory_address_read,
-                                  memory_word_read,
+                                  internal_memory_word_read,
                                   internal_instruction_to_commit,
                                   internal_integer_to_commit,
                                   internal_registers,
@@ -80,13 +87,13 @@ begin
                                 --   write(debug_line, STRING'("UNIT_STATE_FETCH_AND_EXECUTE_INSTRUCTION"));
                                 --   writeline(output, debug_line);
             when UNIT_STATE_COMMITTING_MEMORY =>
-                HandlePostExecution(controller_has_read_memory,
-                                    controller_has_written_memory,
+                HandlePostExecution(internal_controller_has_read_memory,
+                                    internal_controller_has_written_memory,
                                     internal_committing_read_memory,
                                     internal_committing_write_memory,
                                     internal_memory_address_read,
                                     internal_memory_address_write,
-                                    memory_word_read,
+                                    internal_memory_word_read,
                                     internal_memory_word_write,
                                     internal_instruction_to_commit,
                                     internal_integer_to_commit,
@@ -100,13 +107,14 @@ begin
                                     -- end if;
                                     -- writeline(output, debug_line);
         end case;
-    end process;
 
-    -- Assign ports --
-    committing_read_memory <= internal_committing_read_memory;
-    committing_write_memory <= internal_committing_write_memory;
-    memory_address_read <= internal_memory_address_read;
-    memory_address_write <= internal_memory_address_write;
-    memory_word_write <= internal_memory_word_write;
+        -- Assign output ports --
+        committing_read_memory <= internal_committing_read_memory;
+        committing_write_memory <= internal_committing_write_memory;
+        memory_address_read <= internal_memory_address_read;
+        memory_address_write <= internal_memory_address_write;
+        memory_word_write <= internal_memory_word_write;
+
+    end process;
 
 end CentralProcessingUnit_Implementation;
